@@ -98,6 +98,9 @@ const TUNE = [
   ['holdKeep',    '3. 長押し', '同・割合（長音の長さに対して）',  0.8,  'n'],
   ['holdKeepMs',  '3. 長押し', '同・ミリ秒（早く離してよい量）',  200,  'n'],
   ['relHint',     '3. 長押し', '離す位置を帯に出す',              1,    'b'],
+  ['holdAuto',    '3. 長押し', '案A：長音は、条件を満たした瞬間に確定する', 1, 'b'],
+  ['holdCue',     '3. 長押し', '案B：離してよくなった合図',        0,    'b'],
+  ['gapAfterLongMs','3. 長押し','案C：長音のあとの間隔（ミリ秒。0で無し）', 0, 'n'],
   ['tight',       '3. 長押し', '符号の間隔を詰める（長音の直後に符号）', 0, 'b'],
 
   // 4. 返し
@@ -271,7 +274,7 @@ function timeline(chart, fixed){
   const slots = n + 1;
   const gaps = new Array(slots).fill(0);
   const minBeats = Math.ceil((T.minGapMs/1000) / Math.max(0.0001,b));
-  let gapShort = false;
+  let gapShort = false;   // 最小間隔が枠に収まらなかった
   if (T.tight){
     gaps[slots-1] = slack; slack = 0;                    // 全部を末尾へ寄せる＝間隔ゼロ
   } else if (fixed){
@@ -285,9 +288,23 @@ function timeline(chart, fixed){
     }
     for (let k=0;k<slack;k++) gaps[(Math.random()*slots)|0]++;
   }
+  // 案C：長音の直後だけ、別の最小間隔を必ず空ける（足りないぶんは他の間隔から借りる）
+  if (T.gapAfterLongMs > 0){
+    const needL = Math.ceil((T.gapAfterLongMs/1000) / Math.max(0.0001,b));
+    for (let i=0;i<n-1;i++){
+      if (chart[i] !== 'ー') continue;
+      let lack = needL - gaps[i+1];
+      while (lack > 0){
+        let src=-1;
+        for (let k=slots-1;k>=0;k--) if (k!==i+1 && gaps[k]>0){ src=k; break; }
+        if (src<0){ gapShort = true; break; }
+        gaps[src]--; gaps[i+1]++; lack--;
+      }
+    }
+  }
   const out=[]; let t = b*(T.countInBeats + gaps[0]);
   for (let i=0;i<n;i++){
-    out.push({start:t, dur:b*vals[i], long: chart[i]==='ー', ch: chart[i], flash:-9});
+    out.push({start:t, dur:b*vals[i], long: chart[i]==='ー', ch: chart[i], flash:-9, cue:-9});
     t += b*vals[i] + b*gaps[i+1];
   }
   return {syms:out, total: bandSec(), gapShort};
@@ -452,6 +469,27 @@ function step(){
     if (r.t >= r.wait) startChart();
   } else if (r.phase==='play'){
     r.t += dt;
+    // 案A・案B：長音を押している最中に、合格条件を満たしたかを見る
+    if (r.holding && r.aim>=0){
+      const s0 = r.tl.syms[r.aim];
+      if (s0 && s0.long){
+        const held = (r.t - T.offsetMs/1000) - r.pressT;
+        if (holdOk(s0, held)){
+          if (T.holdCue && s0.cue < 0){            // 案B：知らせるだけ。判定は変えない
+            s0.cue = r.tNow;
+            beep(990, 0.05, 'triangle', 0.18);
+            say('離してよい', '#9fd6ff');
+          }
+          if (T.holdAuto){                          // 案A：その場で確定し、指を解放する
+            if (!r.res[r.aim]){
+              const g = judgeSymbol(r.aim, r.pressT - s0.start, true);
+              pushRec((r.pressT - s0.start)*1000, g);
+            }
+            r.holding=false; r.aim=-1; r.pressT=-1; r.pending=-1;
+          }
+        }
+      }
+    }
     // カウントインの音
     if (T.countInSound){
       const k = Math.floor(r.t / Math.max(0.0001,T.beat));
@@ -557,6 +595,14 @@ function drawBand(){
     if (s.long){
       box(x, y+T.bandH/2-4-grow2/2, Math.max(6,wpx-3), 8+grow2, col);
       if (T.relHint) box(x+Math.max(6,wpx-3)-2, y+T.bandH/2-10, 2, 20, '#9fd6ff');
+      // 案B：離してよくなった合図（帯のうえに印を出す）
+      if (T.holdCue && s.cue >= 0)
+        box(x, y+T.bandH/2-14, Math.max(6,wpx-3), 3, '#9fd6ff');
+      // 案C：長音のあとに空けた間隔を薄く敷く
+      if (T.gapAfterLongMs > 0 && i < r.tl.syms.length-1){
+        const nx = px(r.tl.syms[i+1].start), ex = x + Math.max(6,wpx-3);
+        if (nx > ex) box(ex, y+T.bandH/2+7, nx-ex, 2, 'rgba(159,214,255,0.35)');
+      }
     } else {
       box(x-grow2/2, y+T.bandH/2-4-grow2/2, 8+grow2, 8+grow2, col);
     }
