@@ -52,6 +52,9 @@ async function runOnce(page, skill, seed, sets, trace) {
       paybackSec: 60,
       // 深海を目指す度合い（全釣り場が開いた後、深海の稼ぎが最良の何割あれば行くか）
       deepPref: 0.5,
+      // クラーケンをいつ釣るか（プレイヤーの選択。仕様書2章）。
+      // この周より前は、予兆が出ても押さない＝主を釣らない
+      krakenFromRun: 25,
       // 打ち切り（無限ループ避け）
       maxRuns: 200, maxTotalSec: 3600 * 12,
     };
@@ -163,10 +166,12 @@ async function runOnce(page, skill, seed, sets, trace) {
     // 予兆は時間で来る（4章）。一投ぶんの秒数のあいだに立つ確率で近似する
     function pickBossOrGrade(isAuto, sec) {
       if (isAuto) {
-        if (has('opn6') && bossReady(S.place) && rnd() < T.autoBossRate) return 4;
+        if (has('opn6') && bossReady(S.place) && (S.run >= ASSUME.krakenFromRun || S.place !== 7) && rnd() < T.autoBossRate) return 4;
         return pickGrade();
       }
-      if (bossReady(S.place) && rnd() < 1 - Math.exp(-omenRate() * (sec || 0))) return 4;
+      if (S.run >= ASSUME.krakenFromRun || S.place !== 7){
+        if (bossReady(S.place) && rnd() < 1 - Math.exp(-omenRate() * (sec || 0))) return 4;
+      }
       return pickGrade();
     }
 
