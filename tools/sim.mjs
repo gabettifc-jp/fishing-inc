@@ -26,13 +26,14 @@ const SKILL = parseFloat(opt('skill', '0.70'));
 const RUNS  = parseInt(opt('runs', '3'), 10);
 const SEED  = parseInt(opt('seed', '1'), 10);
 const JSONOUT = args.includes('--json');
+const PLAN = args.includes('--plan');
 const SETS = [];
 for (let i = 0; i < args.length; i++)
   if (args[i] === '--set' && args[i + 1]) SETS.push(args[++i]);
 
 /* ---- ブラウザの中で走る本体。ページの関数をそのまま使う ------------------ */
 async function runOnce(page, skill, seed, sets, trace) {
-  return page.evaluate(({ skill, seed, sets, trace }) => {
+  return page.evaluate(({ skill, seed, sets, trace, plan }) => {
 
     /* --- 決めごと（測定器の仮定。仕様書には無い） ----------------------- */
     const ASSUME = {
@@ -83,6 +84,13 @@ async function runOnce(page, skill, seed, sets, trace) {
     };
     const SIGMA = ASSUME.anchorWindowMs / probit((1 + skill) / 2);   // ミリ秒
     const pWithin = w => erf(w / (SIGMA * Math.SQRT2));
+
+    /* --- 計画（10章11）。--plan のときはこの投数と釣り場で回す ------------- */
+    const PLAN_CASTS = {1:23,2:23,3:38,4:76,5:23,6:38,7:76,8:23,9:38,10:76,
+                        11:23,12:38,13:76,14:23,15:38,16:76,17:23,18:38,19:76,
+                        20:23,21:53,22:53,23:53,24:91,25:15};
+    // 釣り場に着く周は 2・5・8・11・14・17・20（10章11）
+    const PLAN_PLACE = n => n<=1?0 : n<=4?1 : n<=7?2 : n<=10?3 : n<=13?4 : n<=16?5 : n<=19?6 : 7;
 
     /* --- 状態を初期化 ---------------------------------------------------- */
     S = newState(); scr = 'A'; combo = 0; bestComboRun = 0; creel = 0;
@@ -255,13 +263,18 @@ async function runOnce(page, skill, seed, sets, trace) {
     let totalSec = 0, cleared = false, clearRun = 0, clearSec = 0;
     let omenCastsLocal = 0;
 
-    for (let runNo = 1; runNo <= ASSUME.maxRuns && !cleared; runNo++) {
+    const LAST = plan ? 25 : ASSUME.maxRuns;
+    for (let runNo = 1; runNo <= LAST && !cleared; runNo++) {
       S.run = runNo; S.rec = newRunRecord(runNo);
       combo = 0; bestComboRun = 0; creel = 0; omenCasts = 0;
       let t = 0, earn = 0;
       usable = S.unlockedPlace.slice();          // この周で使える釣り場を固定する
       const openedAtStart0 = S.unlockedPlace.filter(Boolean).length;
-      S.place = bestPlace();
+      if (plan){
+        S.place = PLAN_PLACE(runNo);
+        for (let q=0;q<=S.place;q++) S.unlockedPlace[q] = true;
+        usable = S.unlockedPlace.slice();
+      } else S.place = bestPlace();
       const byGrade = [0,0,0,0,0]; let perfect = 0, soso = 0, missed = 0, casts = 0, myCasts = 0;
       const autoAcc2 = [];                                    // 自動の竿の進み
       let lastIncome = 1;
@@ -304,10 +317,14 @@ async function runOnce(page, skill, seed, sets, trace) {
         if (cleared) break;
 
         const inc = earn / Math.max(1, t); lastIncome = inc;
-        if (doBuys()) { S.place = bestPlace();
+        if (doBuys()) { if (!plan) S.place = bestPlace();
           if (trace && runNo<=1) tr.push({t:+t.toFixed(0), money:Math.round(S.money), inc:+(earn/Math.max(1,t)).toFixed(1),
             place:S.place+1, tools:{...S.tools}, open:S.unlockedPlace.filter(Boolean).length}); }
 
+        if (plan){
+          if (myCasts >= (PLAN_CASTS[runNo] || 23)) break;
+          continue;
+        }
         // 転生する合図（仕様書2章）。
         //   次の一歩＝まだ手に入れていないもののうち、いま一番手前にあるもの。
         //   その一歩に T.presFar 秒以上かかると分かったら転生する。
@@ -354,7 +371,7 @@ async function runOnce(page, skill, seed, sets, trace) {
         pres:r.presGot, p:r.perfect, s:r.soso, m:r.missed, cb:r.bestCombo,
         place:r.place+1, places:r.places, perks:r.perks, tools:r.tools})),
     };
-  }, { skill, seed, sets, trace });
+  }, { skill, seed, sets, trace, plan: PLAN });
 }
 
 /* ---- 走らせる ------------------------------------------------------------ */
