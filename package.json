@@ -1,0 +1,13 @@
+{
+  "name": "fishing-inc",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "釣りインクリメンタル（仮題）。測定器 tools/sim.mjs を動かすためだけの package.json",
+  "scripts": {
+    "sim": "node tools/sim.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

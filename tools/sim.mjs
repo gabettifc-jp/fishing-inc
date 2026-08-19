@@ -10,7 +10,7 @@
      node tools/sim.mjs --set beat=0.18      … つまみを上書きして測る
      node tools/sim.mjs --json               … 結果をJSONで出す
    ========================================================================== */
-import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
