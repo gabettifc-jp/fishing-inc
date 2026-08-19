@@ -216,11 +216,9 @@ async function runOnce(page, skill, seed, sets, trace) {
     // パークで切ると、一番安いパークがいつでも買えるので周が数投で終わってしまう
     function reachedStep(earn, openedAtStart){
       if (S.unlockedPlace.filter(Boolean).length > openedAtStart) return true;
-      if (!S.unlockedPlace.every(Boolean)) return false;      // 前半はここまで
-      const avail = PERKS.filter(pk => !has(pk.id));
-      if (!avail.length) return false;
-      const cheapest = Math.min(...avail.map(pk => T[pk.costKey]));
-      return (S.pres + presGain(earn)) >= cheapest;
+      // パークで切る合図：今回もらえる経験が、いま持っている分の presWorth 倍に達したら
+      const g = presGain(earn);
+      return g >= Math.max(1, S.pres * T.presWorth);
     }
     function doBuys() {
       let bought = false;
