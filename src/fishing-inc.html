@@ -66,15 +66,23 @@
    ------------------------------------------------------------------------- */
 const TUNE_DEF = [
   // 1. リズムゲー
-  ['beat',            '1. リズムゲー', '一拍の長さ（秒）',                 0.15, 'n'],
-  ['dotBeats',        '1. リズムゲー', '短点の長さ（拍）',                 1,    'n'],
-  ['dashBeats',       '1. リズムゲー', '長点の長さ（拍）',                 3,    'n'],
-  ['gapBeats',        '1. リズムゲー', '符号のあいだの間隔（拍）',         1,    'n'],
+  ['beat',            '1. リズムゲー', '一拍の長さ（秒）',                 0.25, 'n'],
+  ['dotBeats',        '1. リズムゲー', '短音の長さ（拍）',                 1,    'n'],
+  ['dashBeats',       '1. リズムゲー', '長音の長さ（拍）',                 2,    'n'],
+  ['maxSyms',         '1. リズムゲー', '符号数の上限',                     8,    'n'],
+  ['countInBeats',    '1. リズムゲー', 'カウントイン（拍）',               4,    'n'],
+  ['countInSound',    '1. リズムゲー', 'カウントインの音（1で鳴らす）',    1,    'n'],
   ['winHit',          '1. リズムゲー', '判定の幅・当たり（ミリ秒）',       60,   'n'],
   ['winGraze',        '1. リズムゲー', '判定の幅・かすり（ミリ秒）',       140,  'n'],
+  ['holdKeep',        '1. リズムゲー', '長音を押している必要のある割合',   0.8,  'n'],
   ['missRatio0',      '1. リズムゲー', '「逃す」になる外しの割合（初期）', 0.5,  'n'],
-  ['perfectRatio',    '1. リズムゲー', '「完璧」になる当たりの割合',       0.8,  'n'],
-  ['leadIn',          '1. リズムゲー', '光の線が譜面に入る前の予告（秒）', 0.5,  'n'],
+  ['slip2',           '1. リズムゲー', '完璧で許す取りこぼし・2符号',      0,    'n'],
+  ['slip3',           '1. リズムゲー', '同・3符号',                        0,    'n'],
+  ['slip4',           '1. リズムゲー', '同・4符号',                        1,    'n'],
+  ['slip5',           '1. リズムゲー', '同・5符号',                        1,    'n'],
+  ['slip6',           '1. リズムゲー', '同・6符号',                        1,    'n'],
+  ['slip7',           '1. リズムゲー', '同・7符号',                        2,    'n'],
+  ['slip8',           '1. リズムゲー', '同・8符号',                        2,    'n'],
 
   // 2. 連続ボーナス
   ['comboBase',       '2. 連続ボーナス', '連続1回目の倍率',               1.0,  'n'],
@@ -89,9 +97,11 @@ const TUNE_DEF = [
   ['rareTilt',        '3. 待ち時間', 'レア率の傾斜（第一段は0＝傾斜なし）', 0,   'n'],
 
   // 4. 超大物と予兆
-  ['omenRate',        '4. 超大物と予兆', '予兆が出る確率（1投につき）',    0.03, 'n'],
-  ['omenRate2',       '4. 超大物と予兆', '同・パーク10を取った後',        0.06, 'n'],
-  ['omenMinCasts',    '4. 超大物と予兆', '予兆が出るまでの最低投数',      5,    'n'],
+  ['omenRate',        '4. 超大物と予兆', '予兆が出る確率（1秒につき）',    0.005, 'n'],
+  ['omenRate2',       '4. 超大物と予兆', '同・パーク10を取った後',        0.010, 'n'],
+  ['omenGap',         '4. 超大物と予兆', '予兆どうしの最低間隔（秒）',    30,   'n'],
+  ['omenHold',        '4. 超大物と予兆', '予兆の持続（秒）',              15,   'n'],
+  ['autoBossRate',    '4. 超大物と予兆', '自動の竿が主を掛ける確率（1投）', 0.03, 'n'],
   ['omenWaitLo',      '4. 超大物と予兆', '予兆から掛かるまで・下限（秒）', 6,   'n'],
   ['omenWaitHi',      '4. 超大物と予兆', '予兆から掛かるまで・上限（秒）', 8,   'n'],
 
@@ -388,6 +398,7 @@ let overlay = null;                 // null | 'dex' | 'rec'
 const rods = [];                    // 竿。0番が自分の竿
 let combo = 0, bestComboRun = 0;
 let omenCasts = 0, omenOn = false;
+let omenUp = 0, omenCool = 0;   // 予兆が立っている残り秒／次の予兆までの待ち
 let fx = [];                        // 演出
 let blockUntil = 0;                 // 手を止める演出の終わり
 let lastDigits = 0;
@@ -534,16 +545,37 @@ function chartFor(place, grade){
   const cand = POOL.filter(c=>c.length===need);
   return cand[(Math.random()*cand.length)|0];
 }
-// 譜面 -> 各符号の {start, dur, long}（秒）
-function timeline(chart){
-  const b = T.beat, out=[]; let t=0;
-  for (const ch of chart){
-    const long = (ch==='ー');
-    const dur = b*(long?T.dashBeats:T.dotBeats);
-    out.push({start:t, dur, long, ch});
-    t += dur + b*T.gapBeats;
+// 枠の拍数は導出値。上限8符号 × 長音2拍 ＝ 16拍（3章）
+function frameBeats(){ return T.maxSyms * T.dashBeats; }
+// 帯の全体（カウントイン込み）の秒数。符号数によらず一定
+function bandSec(){ return T.beat * (T.countInBeats + frameBeats()); }
+
+// 譜面 -> 各符号の {start, dur, long}（秒）。16拍の格子に置き、余り拍を間隔に配る
+function timeline(chart, fixed){
+  const b = T.beat, n = chart.length;
+  const vals = [...chart].map(ch => ch==='ー' ? T.dashBeats : T.dotBeats);
+  const used = vals.reduce((a,x)=>a+x, 0);
+  const slack = Math.max(0, frameBeats() - used);   // 余り拍
+  const slots = n + 1;                              // 先頭・符号のあいだ・末尾
+  const gaps = new Array(slots).fill(0);
+  if (fixed){
+    // 超大物：均等に配り、割り切れないぶんは先頭から1拍ずつ（毎回同じ並びになる）
+    const q = Math.floor(slack/slots), r = slack % slots;
+    for (let i=0;i<slots;i++) gaps[i] = q + (i<r ? 1 : 0);
+  } else {
+    // それ以外：1拍ずつランダムに配る。同じ場所に何拍でも置ける。0拍でよい
+    for (let k=0;k<slack;k++) gaps[(Math.random()*slots)|0]++;
   }
-  return {syms:out, total:t};
+  const out=[]; let t = b*(T.countInBeats + gaps[0]);
+  for (let i=0;i<n;i++){
+    out.push({start:t, dur:b*vals[i], long: chart[i]==='ー', ch: chart[i]});
+    t += b*vals[i] + b*gaps[i+1];
+  }
+  return {syms:out, total: bandSec()};
+}
+// 完璧で許される取りこぼしの個数（符号数ごと。割合ではない）
+function slipAllow(n){
+  return [0,0,T.slip2,T.slip3,T.slip4,T.slip5,T.slip6,T.slip7,T.slip8][Math.min(8,n)] || 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -574,15 +606,16 @@ function rollWait(){
 }
 function castRod(r){
   r.phase='wait'; r.t=0; r.res=[]; r.idx=0; r.holding=false; r.pressT=-1; r.last=null;
-  const canBoss = bossReady(S.place) && (!r.auto || has('opn6'));
+  // 予兆は「時間」で来る（4章：竿を入れていなくても出る）。ここでは
+  // 予兆が立っているかどうかだけを見る。自動の竿は予兆に関係しない
   r.omen = false;
-  if (canBoss){
-    omenCasts++;
-    if (omenCasts >= T.omenMinCasts && Math.random() < omenRate()){
-      r.omen = true; omenCasts = 0;
-      r.wait = T.omenWaitLo + Math.random()*(T.omenWaitHi-T.omenWaitLo);
-      if (!r.auto) omenSound(true);
-    }
+  if (!r.auto && omenUp > 0 && bossReady(S.place)){
+    r.omen = true; omenUp = 0; omenCool = T.omenGap;
+    r.wait = T.omenWaitLo + Math.random()*(T.omenWaitHi-T.omenWaitLo);
+    omenSound(false);
+  } else if (r.auto && has('opn6') && bossReady(S.place) && Math.random() < T.autoBossRate){
+    r.omen = true;
+    r.wait = T.omenWaitLo + Math.random()*(T.omenWaitHi-T.omenWaitLo);
   }
   if (!r.omen) r.wait = rollWait();
   r.grade = r.omen ? 4 : pickGrade();
@@ -591,7 +624,7 @@ function castRod(r){
   S.rec.casts++;
 }
 function startChart(r){
-  r.phase='play'; r.t = -T.leadIn; r.idx=0; r.res=[]; r.popT=0; r.bandT0=null;
+  r.phase='play'; r.t = 0; r.idx=0; r.res=[]; r.popT=0; r.bandT0=null; r.countIn=-1; r.extra=0;
   if (!r.auto) omenSound(false);
   if (r.auto) autoPlay(r);
 }
@@ -613,11 +646,12 @@ function finishChart(r){
   } else {
     const n = r.tl.syms.length;
     for (let i=0;i<n;i++) if (!r.res[i]) r.res[i]='miss';
-    const hit = r.res.filter(x=>x==='hit').length;
-    const mis = r.res.filter(x=>x==='miss').length;
-    if (mis/n > missRatio())      result='miss';
-    else if (hit/n >= T.perfectRatio) result='perfect';
-    else                          result='soso';
+    const extra = r.extra||0;                             // 余計に押した回数も外しに数える
+    const mis = r.res.filter(x=>x==='miss').length + extra;
+    const slip = n - r.res.filter(x=>x==='hit').length + extra;   // 取りこぼし＝当たり以外
+    if (mis/n > missRatio())          result='miss';      // 境界は「超える」。ちょうどは許す
+    else if (slip <= slipAllow(n))    result='perfect';
+    else                              result='soso';
   }
   // 糸パーク3段：逃したときに稀に釣れている
   let saved=false;
@@ -724,7 +758,7 @@ function autoBuy(){                    // 開く型5：安いものから順に
 }
 function gotoPlace(p){
   if (!S.unlockedPlace[p]) return;
-  S.place = p; omenCasts = 0; omenSound(false);
+  S.place = p; omenCasts = 0; omenUp = 0; omenCool = 0; omenSound(false);
   for (const r of rods){ r.phase='idle'; r.t=0; }
   fxAdd('place');
   bgmStart();
@@ -763,7 +797,7 @@ function doPrestige(){
   }
   S.tools = keep;
   S.money = has('car4') ? Math.floor(S.lastEarn * T.car4v) : 0;
-  creel = 0; combo = 0; bestComboRun = 0; omenCasts = 0;
+  creel = 0; combo = 0; bestComboRun = 0; omenCasts = 0; omenUp = 0; omenCool = 0;
   S.run++; S.rec = newRunRecord(S.run);
   fxAdd('prestige');
   scr='C'; syncRods(); save();
@@ -827,18 +861,24 @@ function press(down){
   const t = r.t;
   if (down){
     r.holding = true; r.pressT = t;
-    const i = r.idx;
-    const s = r.tl.syms[i];
-    if (!s) return;
-    // 押した瞬間に、どの符号を狙ったかを決める
-    r.aim = i;
+    // 押した時刻を「一番近い符号」に割り当てる（3章）。
+    // 判定の幅が隣と重なっても、中点で切れば曖昧な区間は生まれない
+    let best=-1, bestD=Infinity;
+    for (let i=0;i<r.tl.syms.length;i++){
+      if (r.res[i]) continue;                       // すでに決まった符号は対象外
+      const d = Math.abs(t - r.tl.syms[i].start);
+      if (d < bestD){ bestD = d; best = i; }
+    }
+    if (best < 0){ r.extra = (r.extra||0)+1; return; }   // 余計な押し
+    r.aim = best;
   } else {
     if (!r.holding) return;
     r.holding = false;
     const i = r.aim; const s = r.tl.syms[i];
     if (s==null || r.res[i]) { r.pressT=-1; return; }
     const held = t - r.pressT;
-    const kindOk = s.long ? (held >= s.dur*0.6) : (held < s.dur + T.beat*T.gapBeats*0.5);
+    // 長音は押し始めで判定する。ただし長さの8割より早く離したら外し
+    const kindOk = s.long ? (held >= s.dur*T.holdKeep) : true;
     judgeSymbol(r, i, r.pressT - s.start, kindOk);
     r.idx = Math.max(r.idx, i+1);
     r.pressT = -1;
@@ -879,8 +919,17 @@ function update(dt){
 
   autoBuy();
   syncRods();
+
+  // 予兆は時間で来る（4章）。竿を入れていなくても立つ
+  if (omenCool > 0) omenCool -= dt;
+  if (omenUp > 0){ omenUp -= dt; if (omenUp <= 0) omenSound(false); }
+  else if (omenCool <= 0 && bossReady(S.place) && Math.random() < omenRate()*dt){
+    omenUp = T.omenHold; omenSound(true);
+  }
+
   for (const r of rods){
     if (r.phase==='idle'){
+      // 自分の竿は押すまで振らない（4章）。自動の竿だけが勝手に投げ直す
       if (r.auto) castRod(r);
       continue;
     }

@@ -89,7 +89,7 @@ async function runOnce(page, skill, seed, sets, trace) {
     rods.length = 0; fx.length = 0; blockUntil = 0;
     T.sndOn = 0; T.bgmOn = 0; T.autoSave = 0;
 
-    const avgSymSec = () => T.beat * ((T.dotBeats + T.dashBeats) / 2 + T.gapBeats);
+    // 帯は符号数によらず固定（カウントイン4拍＋譜面16拍＝20拍）
     const avgWait = () => { const {lo,hi} = waitRange(); return lo + (hi - lo) / (T.waitSkew + 1); };
     const rateOf = g => [T.rate0, T.rate1, T.rate2, T.rate3][g];
 
@@ -106,12 +106,12 @@ async function runOnce(page, skill, seed, sets, trace) {
         const C = (n, k) => { let c = 1; for (let i = 0; i < k; i++) c = c * (n - i) / (i + 1); return c; };
         for (let h = 0; h <= n; h++) for (let m = 0; m + h <= n; m++) {
           const q = C(n, h) * C(n - h, m) * Math.pow(ph, h) * Math.pow(pm, m) * Math.pow(pg, n - h - m);
-          if (m / n > mr) pMiss += q; else if (h / n >= T.perfectRatio) pPerfect += q;
+          if (m / n > mr) pMiss += q; else if (n - h <= slipAllow(n)) pPerfect += q;
         }
         const pSoso = 1 - pPerfect - pMiss;
         const unit = unitPrice(p, g) * sellMult();
         money += r * (pPerfect * unit * perfectMult() + pSoso * unit);
-        time  += r * (avgWait() + T.leadIn + n * avgSymSec());
+        time  += r * (avgWait() + bandSec());
       }
       S.place = keep;
       return tot > 0 ? money / tot / (time / tot) : 0;
@@ -130,12 +130,12 @@ async function runOnce(page, skill, seed, sets, trace) {
 
     /* --- 一投を解く ------------------------------------------------------ */
     function resolveCast(isAuto) {
-      const grade = pickBossOrGrade(isAuto);
+      const grade = pickBossOrGrade(isAuto, avgWait() + bandSec());
       const chart = chartFor(S.place, grade);
       const n = chart.length;
       const tl = timeline(chart);
       const dur = (grade === 4 ? T.omenWaitLo + rnd() * (T.omenWaitHi - T.omenWaitLo) : rollWait())
-                + T.leadIn + tl.total;
+                + tl.total;
       let result;
       if (isAuto) {
         result = rnd() < autoAcc() ? 'soso' : 'miss';
@@ -144,18 +144,19 @@ async function runOnce(page, skill, seed, sets, trace) {
         let hit = 0, mis = 0;
         for (let i = 0; i < n; i++) { const u = rnd(); if (u < ph) hit++; else if (u >= ph + pg) mis++; }
         if (mis / n > missRatio()) result = 'miss';
-        else if (hit / n >= T.perfectRatio) result = 'perfect';
+        else if (n - hit <= slipAllow(n)) result = 'perfect';
         else result = 'soso';
       }
       if (result === 'miss' && has('pkLine3') && rnd() < T.pkLine3v) result = 'soso';
       return { grade, n, dur, result };
     }
-    function pickBossOrGrade(isAuto) {
-      const canBoss = bossReady(S.place) && (!isAuto || has('opn6'));
-      if (canBoss) {
-        omenCasts++;
-        if (omenCasts >= T.omenMinCasts && rnd() < omenRate()) { omenCasts = 0; return 4; }
+    // 予兆は時間で来る（4章）。一投ぶんの秒数のあいだに立つ確率で近似する
+    function pickBossOrGrade(isAuto, sec) {
+      if (isAuto) {
+        if (has('opn6') && bossReady(S.place) && rnd() < T.autoBossRate) return 4;
+        return pickGrade();
       }
+      if (bossReady(S.place) && rnd() < 1 - Math.exp(-omenRate() * (sec || 0))) return 4;
       return pickGrade();
     }
 
@@ -230,6 +231,7 @@ async function runOnce(page, skill, seed, sets, trace) {
       combo = 0; bestComboRun = 0; creel = 0; omenCasts = 0;
       S.place = bestPlace();
       let t = 0, earn = 0;
+      const openedAtStart = S.unlockedPlace.filter(Boolean).length;
       const byGrade = [0,0,0,0,0]; let perfect = 0, soso = 0, missed = 0, casts = 0, myCasts = 0;
       const autoAcc2 = [];                                    // 自動の竿の進み
       let lastIncome = 1;
@@ -276,10 +278,26 @@ async function runOnce(page, skill, seed, sets, trace) {
           if (trace && runNo<=1) tr.push({t:+t.toFixed(0), money:Math.round(S.money), inc:+(earn/Math.max(1,t)).toFixed(1),
             place:S.place+1, tools:{...S.tools}, open:S.unlockedPlace.filter(Boolean).length}); }
 
-        // 伸びが鈍ったら転生する。乱数に振られないよう、見込みで決める
-        const worth = ASSUME.presThreshold < 1e8
-          && presGain(earn) >= Math.max(1, S.pres * ASSUME.presThreshold);
-        if (t > ASSUME.minRunSec && (worth || stalled())) {
+        // 転生する合図（仕様書2章）。
+        //   前半＝次の移動手段が買えたら／後半＝次に狙うパークが買えたら
+        //
+        // ★ここは仕様書が足りていない（測定器の仮定）。
+        //   10章11の3拍（溜め＝移動手段を買う／跳ね＝釣り場に着く／助走＝パークを取る）
+        //   に対応する合図が書かれていない。2章の「次の移動手段が買えたら」だけだと
+        //   毎周買うことになって3拍にならない。ここでは
+        //   「一周に移動手段は一つまで。買ったらその周で終わる」を置いている。
+        let signal;
+        const openedNow = S.unlockedPlace.filter(Boolean).length;
+        if (openedNow > openedAtStart) {
+          signal = true;                              // この周で移動手段を買った
+        } else if (S.unlockedPlace.every(Boolean)) {
+          const avail = PERKS.filter(pk => !has(pk.id));
+          const cheapest = avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity;
+          signal = (S.pres + presGain(earn)) >= cheapest;   // 次に狙うパークが買える
+        } else {
+          signal = false;
+        }
+        if (t > ASSUME.minRunSec && (signal || stalled())) {
           if (trace && runNo<=1) tr.push({t:+t.toFixed(0), money:Math.round(S.money),
             inc:+incomeNow().toFixed(2), why:'転生', shop:shopList().map(i=>i.kind+':'+i.name+':'+Math.round(i.price)).join(',')});
           break; }
@@ -359,13 +377,13 @@ else {
   console.log('─'.repeat(78));
   const row = (n, v, target) => console.log(('  '+n).padEnd(30, ' ') + String(v).padEnd(26,' ') + (target||''));
   row('通しの周数', out.map(r=>r.runs).join(' / '), '目標 25周前後');
-  row('通しの時間', out.map(r=>fs2(r.totalSec)).join(' / '), '目標 3〜4時間');
-  row('1周目の長さ', out.map(r=>fs2(r.firstRunSec)).join(' / '), '目標 3分');
-  row('最後の周の長さ', out.map(r=>fs2(r.lastRunSec)).join(' / '), '目標 15分');
-  row('一周の投数・自分の竿(平均)', out.map(r=>Math.round(r.avgCasts)).join(' / '), '目標 40〜50回');
+  row('通しの時間', out.map(r=>fs2(r.totalSec)).join(' / '), '目標 約2時間13分');
+  row('1周目の長さ', out.map(r=>fs2(r.firstRunSec)).join(' / '), '目標 7分44秒（溜め76投）');
+  row('最後の周の長さ', out.map(r=>fs2(r.lastRunSec)).join(' / '), '目標 1分51秒（凱旋15投）');
+  row('一周の投数・自分の竿(平均)', out.map(r=>Math.round(r.avgCasts)).join(' / '), '目標 溜め76／跳ね23／助走38');
   row('  同・自動もあわせた総数', out.map(r=>Math.round(r.avgAllCasts)).join(' / '), '');
-  row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 12〜15周目');
-  row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 23〜25周目');
+  row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 20周目');
+  row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 25周目');
   console.log('─'.repeat(78));
   const r0 = out[0];
   console.log('  1回目の周ごと（最初の6周と最後の3周）');
