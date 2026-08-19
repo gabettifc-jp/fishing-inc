@@ -309,7 +309,7 @@ async function runOnce(page, skill, seed, sets, trace) {
           else soso++;
           money = Math.floor(money);
           S.money += money; earn += money; byGrade[c.grade]++;
-          if (!S.dex[S.place][c.grade]) S.dex[S.place][c.grade] = true;
+          { const sl = GRADE_SLOTS[c.grade]; const k = sl[(rnd()*sl.length)|0]; S.dex[S.place][k] = true; }
           if (S.place === 7 && c.grade === 4) { cleared = true; clearRun = runNo; }
         }
         // 自動の竿
@@ -325,7 +325,7 @@ async function runOnce(page, skill, seed, sets, trace) {
             if (a.result === 'miss') missed++;
             else { const m = Math.floor(unitPrice(S.place, a.grade) * sellMult());
               S.money += m; earn += m; soso++; byGrade[a.grade]++;
-              if (!S.dex[S.place][a.grade]) S.dex[S.place][a.grade] = true;
+              { const sl = GRADE_SLOTS[a.grade]; const k = sl[(rnd()*sl.length)|0]; S.dex[S.place][k] = true; }
               if (S.place === 7 && a.grade === 4) { cleared = true; clearRun = runNo; } }
           }
         }

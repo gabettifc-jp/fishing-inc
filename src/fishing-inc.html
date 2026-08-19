@@ -293,16 +293,22 @@ const PLACES = [
 ];
 
 // 5章 魚40種（釣り場 × 格）
+// 5章 魚72種。格ごとに2種、主だけ1種。
+// 並びは 雑魚a,雑魚b, 並a,並b, 良型a,良型b, 大物a,大物b, 主 の9枠
 const FISH = [
-  ['メダカ','ドジョウ','フナ','ナマズ','ハクレン'],
-  ['ウグイ','オイカワ','コイ','ライギョ','スッポン'],
-  ['ワカサギ','ヒメマス','ニジマス','ブラックバス','イトウ'],
-  ['イワシ','アジ','サバ','カサゴ','タコ'],
-  ['カツオ','シイラ','ブリ','クロマグロ','ホホジロザメ'],
-  ['ホッキョクダラ','コオリカマス','ギンダラ','アイスフィッシュ','ニシオンデンザメ'],
-  ['シロウオ','ブラインドフィッシュ','ホラアナドジョウ','アラバマケイブフィッシュ','ヨミノヌシ'],
-  ['チョウチンアンコウ','ラブカ','リュウグウノツカイ','ダイオウイカ','クラーケン'],
+  ['メダカ','タモロコ','ドジョウ','タナゴ','フナ','ブルーギル','ナマズ','ソウギョ','ハクレン'],
+  ['ウグイ','カワムツ','オイカワ','ニゴイ','コイ','ヘラブナ','ライギョ','アメリカナマズ','スッポン'],
+  ['ワカサギ','ヨシノボリ','ヒメマス','イワナ','ニジマス','サクラマス','ブラックバス','ビワコオオナマズ','イトウ'],
+  ['イワシ','サッパ','アジ','メジナ','サバ','クロダイ','カサゴ','ヒラメ','タコ'],
+  ['カツオ','サンマ','シイラ','カンパチ','ブリ','マカジキ','クロマグロ','バショウカジキ','ホホジロザメ'],
+  ['ホッキョクダラ','キュウリウオ','コオリカマス','ホッケ','ギンダラ','マダラ','アイスフィッシュ','オヒョウ','ニシオンデンザメ'],
+  ['シロウオ','ドウクツエビ','ブラインドフィッシュ','ケイブモーリー','ホラアナドジョウ','ドウクツナマズ','アラバマケイブフィッシュ','ホライモリ','ヨミノヌシ'],
+  ['チョウチンアンコウ','メンダコ','ラブカ','オニキンメ','リュウグウノツカイ','ミツクリザメ','ダイオウイカ','ダイオウグソクムシ','クラーケン'],
 ];
+// 図鑑の枠（0〜8） -> 格（0〜4）
+const SLOT_GRADE = [0,0,1,1,2,2,3,3,4];
+// 格 -> その格の2枠（主は1枠）
+const GRADE_SLOTS = [[0,1],[2,3],[4,5],[6,7],[8]];
 
 // 3章 釣り場ごとの符号数の傾斜
 const SYM_COUNT = [
@@ -500,7 +506,7 @@ function moveCost(p){ return [0,T.move2,T.move3,T.move4,T.move5,T.move6,T.move7,
 function nextPlace(){ return S.place+1 <= 7 ? S.place+1 : -1; }
 function presGain(earn){ return Math.floor(pow(Math.max(0,earn)/T.presDiv, T.presExp)); }
 function runTarget(no){ return T.runTarget1 + T.runTargetStep*(no-1); }
-function bossReady(p){ return has('opn7') && S.dex[p].slice(0,4).every(Boolean); }
+function bossReady(p){ return has('opn7') && S.dex[p].slice(0,8).every(Boolean); }
 
 /* 2章 桁の表記：日本語の桁は使わない。15桁までは全部数字、16桁から指数表記 */
 function yen(v){
@@ -614,7 +620,7 @@ function syncRods(){
 }
 function pickGrade(){
   const w = [T.rate0,T.rate1,T.rate2,T.rate3].slice();
-  if (has('opn9')) for (let g=0;g<4;g++) if (!S.dex[S.place][g]) w[g] *= T.opn9v;
+  if (has('opn9')) for (let g=0;g<4;g++) if (!GRADE_SLOTS[g].every(k=>S.dex[S.place][k])) w[g] *= T.opn9v;
   const sum = w.reduce((a,b)=>a+b,0);
   let r = Math.random()*sum;
   for (let g=0;g<4;g++){ r -= w[g]; if (r<=0) return g; }
@@ -706,7 +712,9 @@ function applyResult(r, result, saved){
 
   S.rec.earn += money;
   S.rec.byGrade[g]++;
-  if (!S.dex[S.place][g]){ S.dex[S.place][g] = true; note('図鑑：'+FISH[S.place][g]+' を記録'); }
+  const slots = GRADE_SLOTS[g];
+  const slot = slots[(Math.random()*slots.length)|0];
+  if (!S.dex[S.place][slot]){ S.dex[S.place][slot] = true; note('図鑑：'+FISH[S.place][slot]+' を記録'); }
   r.last = {result, grade:g, money, saved};
 
   fxAdd(result==='perfect'?'perfect':'soso', g, r);
@@ -824,7 +832,7 @@ function doPrestige(){
   scr='C'; syncRods(); save();
 }
 function checkClear(){
-  if (!S.cleared && S.dex[7][4]){
+  if (!S.cleared && S.dex[7][8]){
     S.cleared = true; S.clearRun = S.run;
     S.clearSec = S.totalSec + (performance.now()-S.rec.t0)/1000;
     note('クラーケンを釣った。'+S.clearRun+'周目／'+fmtSec(S.clearSec));
