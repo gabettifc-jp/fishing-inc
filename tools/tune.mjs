@@ -19,6 +19,7 @@ const SIM  = path.resolve(HERE, 'sim.mjs');
 const WRITE = process.argv.includes('--write');
 const ROUNDS = parseInt((process.argv.find(a => a.startsWith('--rounds=')) || '--rounds=10').split('=')[1], 10);
 
+const COLLAPSE = 18;   // これ以下なら「買えないまま終わった」とみなす
 const TAME = [4, 7, 10, 13, 16, 19];                 // 溜め周（移動手段を買う）
 const MOVE_OF = { 4:'move3', 7:'move4', 10:'move5', 13:'move6', 16:'move7', 19:'move8' };
 const target = n => n === 1 ? 23 : TAME.includes(n) ? 76 : 36;
@@ -46,14 +47,20 @@ for (let round = 1; round <= ROUNDS; round++) {
   const per = Object.fromEntries(r.perRun.map(x => [x.no, x.casts]));
 
   // 1. 溜め周：短ければ移動手段を高く、長ければ安く（1周ずつ）
+  //    ただし「崩れ」を先に見る。値段が届かなくなると周が一気に短くなるので、
+  //    そこで値段を上げると正の帰還で発散する。**崩れたら下げる。**
   for (const n of TAME) {
     const a = per[n];
     if (!a) continue;
-    const ratio = clamp(target(n) / a, 0.5, 2.0);
-    val[MOVE_OF[n]] = Math.round(val[MOVE_OF[n]] * Math.pow(ratio, 0.7));
+    if (a <= COLLAPSE) {                       // 買えないまま終わっている
+      val[MOVE_OF[n]] = Math.round(val[MOVE_OF[n]] * 0.6);
+      continue;
+    }
+    const ratio = clamp(target(n) / a, 0.8, 1.4);
+    val[MOVE_OF[n]] = Math.round(val[MOVE_OF[n]] * Math.pow(ratio, 0.4));
   }
   // 周1（導入）は長靴で決まる
-  if (per[1]) val.move2 = Math.round(val.move2 * Math.pow(clamp(23 / per[1], 0.5, 2.0), 0.7));
+  if (per[1]) val.move2 = Math.round(val.move2 * Math.pow(clamp(23 / per[1], 0.8, 1.4), 0.4));
 
   // 2. 普通周：長すぎるなら転生の魅力が足りない＝無限段を安く（伸び率を下げる）
   const norm = r.perRun.filter(x => x.no !== 1 && !TAME.includes(x.no)).map(x => x.casts);
