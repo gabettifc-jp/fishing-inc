@@ -157,6 +157,12 @@ const TUNE_DEF = [
 
   // 9. 転生
   ['presExp',         '9. 転生', '式の指数',                             0.3,  'n'],
+  ['infCoolBase',     '10. パーク（無限段）', 'クーラー売値・1段目の値段',      40,  'n'],
+  ['infCoolGrow',     '10. パーク（無限段）', '同・値段の伸び率',              1.8, 'n'],
+  ['infCoolEff',      '10. パーク（無限段）', '同・効果の伸び率（売値の倍率）', 1.6, 'n'],
+  ['infRodBase',      '10. パーク（無限段）', '竿本数・1段目の値段',            60,  'n'],
+  ['infRodGrow',      '10. パーク（無限段）', '同・値段の伸び率',              2.0, 'n'],
+  ['infRodEff',       '10. パーク（無限段）', '同・効果の伸び率',              1.6, 'n'],
   ['presWorth',       '9. 転生', '今回もらえる経験が持ち分のこの倍で転生', 1.0, 'n'],
   ['presFar',         '9. 転生', '次の一歩がこの秒数以上なら転生の合図', 1800, 'n'],
   ['presDiv',         '9. 転生', '式の割る数',                           120,  'n'],
@@ -383,6 +389,7 @@ function newState(){
     unlockedPlace:[true,false,false,false,false,false,false,false],
     tools:{bait:0,line:0,reel:0,cool:0,rod:0},
     perks:{},                       // id -> true
+    inf:{cool:0, rod:0},            // 無限段の段数（クーラー売値・竿本数）
     dex:FISH.map(r=>r.map(()=>false)),
     carrySel:[],                    // 次の周へ持ち越す道具のid
     lastEarn:0,
@@ -453,8 +460,20 @@ function waitRange(){
 }
 function dexCount(){ let c=0; for(const r of S.dex) for(const b of r) if(b) c++; return c; }
 function placeAllCaught(p){ return S.dex[p].every(Boolean); }
+// 無限段（10章10）。値段 = 初期値 × 伸び率^段数、効果 = 効果の伸び率^段数
+function infPrice(axis){
+  const n = (S.inf&&S.inf[axis])||0;
+  return axis==='cool' ? T.infCoolBase*pow(T.infCoolGrow,n) : T.infRodBase*pow(T.infRodGrow,n);
+}
+function infCoolMult(){ return pow(T.infCoolEff, (S.inf&&S.inf.cool)||0); }
+// 自動の竿の本数（10章10の式）。0段は0本、一段ごとに必ず1本は増える
+function infRodCount(){
+  const n = (S.inf&&S.inf.rod)||0;
+  if (n<=0) return 0;
+  return Math.max(n, Math.floor(pow(T.infRodEff, n)));
+}
 function sellMult(){
-  let m = pow(1+coolEff(), S.tools.cool);
+  let m = pow(1+coolEff(), S.tools.cool) * infCoolMult();
   if (has('opn8')) m *= (1 + T.opn8v*dexCount());
   if (has('opn7') && placeAllCaught(S.place)) m *= (1 + T.dexAllBonus);
   return m;
@@ -468,7 +487,7 @@ function autoAcc(){
   if (has('pkRod3')) a += T.pkRod3v;
   return Math.min(a, 0.999);        // 手動を上回らない（100%未満）
 }
-function autoRodCount(){ return S.tools.rod + (has('pkRod2') ? T.pkRod2v : 0); }
+function autoRodCount(){ return S.tools.rod + (has('pkRod2') ? T.pkRod2v : 0) + infRodCount(); }
 function carrySlots(){ return has('car3')?3 : has('car2')?2 : has('car1')?1 : 0; }
 function omenRate(){ return has('opn10') ? T.omenRate2 : T.omenRate; }
 function unitPrice(p,g){

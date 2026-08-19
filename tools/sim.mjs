@@ -210,8 +210,10 @@ async function runOnce(page, skill, seed, sets, trace) {
         if (it.kind === 'move') best = Math.min(best, Math.max(0,(it.price - S.money))/inc);
       // 次に狙うパーク（経験で買う）までの見込み
       const avail = PERKS.filter(pk => !has(pk.id));
-      if (avail.length){
-        const cheapest = Math.min(...avail.map(pk => T[pk.costKey]));
+      {
+        const cheapest = Math.min(
+          avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity,
+          infPrice('cool'), infPrice('rod'));
         const need = cheapest - S.pres;
         const cur  = Math.max(1e-9, presGain(earn));
         if (cur < need) best = Math.min(best, t * (Math.pow(need/cur, 1/T.presExp) - 1));
@@ -224,9 +226,12 @@ async function runOnce(page, skill, seed, sets, trace) {
     // パークで切ると、一番安いパークがいつでも買えるので周が数投で終わってしまう
     function reachedStep(earn, openedAtStart){
       if (S.unlockedPlace.filter(Boolean).length > openedAtStart) return true;
-      // パークで切る合図：今回もらえる経験が、いま持っている分の presWorth 倍に達したら
-      const g = presGain(earn);
-      return g >= Math.max(1, S.pres * T.presWorth);
+      // パークで切る合図：次に狙うもの（未取得パーク or 無限段の次の段）に届いたら
+      const avail = PERKS.filter(pk => !has(pk.id));
+      const cheapest = Math.min(
+        avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity,
+        infPrice('cool'), infPrice('rod'));
+      return (S.pres + presGain(earn)) >= cheapest;
     }
     function doBuys() {
       let bought = false;
@@ -250,11 +255,21 @@ async function runOnce(page, skill, seed, sets, trace) {
 
     /* --- パークを取る（転生のとき。安いものから順に） -------------------- */
     function buyPerks() {
-      for (let guard = 0; guard < 200; guard++) {
+      for (let guard = 0; guard < 500; guard++) {
         const avail = PERKS.filter(p => !has(p.id) && S.pres >= T[p.costKey]);
-        if (!avail.length) break;
-        avail.sort((a, b) => T[a.costKey] - T[b.costKey]);
-        buyPerk(avail[0]);
+        // 無限段も候補に入れる（安いほうから買う）
+        const infs = [];
+        for (const ax of ['cool','rod']){ const pr = infPrice(ax); if (S.pres >= pr) infs.push({ax, pr}); }
+        if (!avail.length && !infs.length) break;
+        const cheapPerk = avail.length ? Math.min(...avail.map(p=>T[p.costKey])) : Infinity;
+        const cheapInf  = infs.length ? Math.min(...infs.map(x=>x.pr)) : Infinity;
+        if (cheapInf < cheapPerk){
+          const pick = infs.find(x=>x.pr===cheapInf);
+          S.pres -= Math.round(cheapInf); S.inf[pick.ax]++;
+        } else {
+          avail.sort((a, b) => T[a.costKey] - T[b.costKey]);
+          buyPerk(avail[0]);
+        }
       }
     }
 
