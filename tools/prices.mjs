@@ -19,7 +19,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const SRC  = path.resolve(HERE, '..', 'src', 'fishing-inc.html');
 const PAGE = 'file://' + SRC;
 const WRITE = process.argv.includes('--write');
-const ROUNDS = 5;
+const ROUNDS = 6;
+const MARGIN = parseFloat((process.argv.find(a=>a.startsWith('--margin=')) || '--margin=0.8').split('=')[1]);
 
 /* どの周でどのパークを取るか（10章11の節目に合わせる）。
    周1・4・7・10・13・16・19 は移動手段の周なので、パークは置かない */
@@ -60,7 +61,7 @@ for (let round = 1; round <= ROUNDS; round++) {
     const run = +runStr;
     const g = gains[run] || 1;
     // その周の経験の8割を、その周で取るパークで分け合う
-    const each = Math.max(1, Math.floor(g * 0.8 / ids.length));
+    const each = Math.max(1, Math.floor(g * MARGIN / ids.length));
     for (const id of ids) next[COSTKEYS[id]] = each;
   }
   const moved = Object.keys(next).filter(k => costs[k] !== next[k]).length;
