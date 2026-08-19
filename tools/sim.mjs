@@ -117,10 +117,12 @@ async function runOnce(page, skill, seed, sets, trace) {
       return tot > 0 ? money / tot / (time / tot) : 0;
     }
 
+    // 周の頭で開いていた釣り場だけを選べる（10章11「移動手段は買った次の周から効く」）
+    let usable = [];
     function bestPlace() {
       let bi = -1, bv = -1;
-      for (let p = 0; p < 8; p++) if (S.unlockedPlace[p]) { const v = estIncome(p); if (v > bv) { bv = v; bi = p; } }
-      const allOpen = S.unlockedPlace.every(Boolean);
+      for (let p = 0; p < 8; p++) if (usable[p]) { const v = estIncome(p); if (v > bv) { bv = v; bi = p; } }
+      const allOpen = usable.every(Boolean);
       if (allOpen && has('opn7')) {                 // 終盤はクラーケンを目指して深海へ
         const deep = estIncome(7);
         if (deep >= bv * ASSUME.deepPref) return 7;
@@ -191,6 +193,35 @@ async function runOnce(page, skill, seed, sets, trace) {
       return true;
     }
     function incomeNow(){ return estIncome(S.place) * (1 + autoRodCount()*autoShare()); }
+    // 次の一歩（いま一番手前にあるもの）に、あと何秒かかるか
+    function nextStepSec(t, earn){
+      const inc = Math.max(1e-9, incomeNow());
+      let best = Infinity;
+      // 周をまたいで残るものだけを数える。道具は数えない（2章）
+      for (const it of shopList())
+        if (it.kind === 'move') best = Math.min(best, Math.max(0,(it.price - S.money))/inc);
+      // 次に狙うパーク（経験で買う）までの見込み
+      const avail = PERKS.filter(pk => !has(pk.id));
+      if (avail.length){
+        const cheapest = Math.min(...avail.map(pk => T[pk.costKey]));
+        const need = cheapest - S.pres;
+        const cur  = Math.max(1e-9, presGain(earn));
+        if (cur < need) best = Math.min(best, t * (Math.pow(need/cur, 1/T.presExp) - 1));
+        else best = 0;                       // もう届いている
+      }
+      return best;
+    }
+    // その周の目標に手が届いたか。
+    // 移動手段が残っているあいだは「移動手段を買った」だけを見る。
+    // パークで切ると、一番安いパークがいつでも買えるので周が数投で終わってしまう
+    function reachedStep(earn, openedAtStart){
+      if (S.unlockedPlace.filter(Boolean).length > openedAtStart) return true;
+      if (!S.unlockedPlace.every(Boolean)) return false;      // 前半はここまで
+      const avail = PERKS.filter(pk => !has(pk.id));
+      if (!avail.length) return false;
+      const cheapest = Math.min(...avail.map(pk => T[pk.costKey]));
+      return (S.pres + presGain(earn)) >= cheapest;
+    }
     function doBuys() {
       let bought = false;
       for (let guard = 0; guard < 300; guard++) {
@@ -229,9 +260,10 @@ async function runOnce(page, skill, seed, sets, trace) {
     for (let runNo = 1; runNo <= ASSUME.maxRuns && !cleared; runNo++) {
       S.run = runNo; S.rec = newRunRecord(runNo);
       combo = 0; bestComboRun = 0; creel = 0; omenCasts = 0;
-      S.place = bestPlace();
       let t = 0, earn = 0;
-      const openedAtStart = S.unlockedPlace.filter(Boolean).length;
+      usable = S.unlockedPlace.slice();          // この周で使える釣り場を固定する
+      const openedAtStart0 = S.unlockedPlace.filter(Boolean).length;
+      S.place = bestPlace();
       const byGrade = [0,0,0,0,0]; let perfect = 0, soso = 0, missed = 0, casts = 0, myCasts = 0;
       const autoAcc2 = [];                                    // 自動の竿の進み
       let lastIncome = 1;
@@ -279,25 +311,11 @@ async function runOnce(page, skill, seed, sets, trace) {
             place:S.place+1, tools:{...S.tools}, open:S.unlockedPlace.filter(Boolean).length}); }
 
         // 転生する合図（仕様書2章）。
-        //   前半＝次の移動手段が買えたら／後半＝次に狙うパークが買えたら
-        //
-        // ★ここは仕様書が足りていない（測定器の仮定）。
-        //   10章11の3拍（溜め＝移動手段を買う／跳ね＝釣り場に着く／助走＝パークを取る）
-        //   に対応する合図が書かれていない。2章の「次の移動手段が買えたら」だけだと
-        //   毎周買うことになって3拍にならない。ここでは
-        //   「一周に移動手段は一つまで。買ったらその周で終わる」を置いている。
-        let signal;
-        const openedNow = S.unlockedPlace.filter(Boolean).length;
-        if (openedNow > openedAtStart) {
-          signal = true;                              // この周で移動手段を買った
-        } else if (S.unlockedPlace.every(Boolean)) {
-          const avail = PERKS.filter(pk => !has(pk.id));
-          const cheapest = avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity;
-          signal = (S.pres + presGain(earn)) >= cheapest;   // 次に狙うパークが買える
-        } else {
-          signal = false;
-        }
-        if (t > ASSUME.minRunSec && (signal || stalled())) {
+        //   次の一歩＝まだ手に入れていないもののうち、いま一番手前にあるもの。
+        //   その一歩に T.presFar 秒以上かかると分かったら転生する。
+        //   周の役割（溜め・跳ね・助走）はゲームは知らない。3拍は値段から出てくる。
+        const signal = reachedStep(earn, openedAtStart0) || nextStepSec(t, earn) >= T.presFar;
+        if (t > ASSUME.minRunSec && signal) {
           if (trace && runNo<=1) tr.push({t:+t.toFixed(0), money:Math.round(S.money),
             inc:+incomeNow().toFixed(2), why:'転生', shop:shopList().map(i=>i.kind+':'+i.name+':'+Math.round(i.price)).join(',')});
           break; }
