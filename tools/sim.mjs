@@ -91,9 +91,9 @@ async function runOnce(page, skill, seed, sets, trace) {
     const pWithin = w => erf(w / (SIGMA * Math.SQRT2));
 
     /* --- 計画（10章11）。--plan のときはこの投数と釣り場で回す ------------- */
-    const PLAN_CASTS = {1:23,2:23,3:38,4:76,5:23,6:38,7:76,8:23,9:38,10:76,
-                        11:23,12:38,13:76,14:23,15:38,16:76,17:23,18:38,19:76,
-                        20:23,21:53,22:53,23:53,24:91,25:15};
+    // 2拍（10章11）。導入23／溜め76（4・7・10・13・16・19）／それ以外36
+    const TAME = {4:1,7:1,10:1,13:1,16:1,19:1};
+    const PLAN_CASTS = {}; for (let n=1;n<=25;n++) PLAN_CASTS[n] = n===1?23 : TAME[n]?76 : 36;
     // 釣り場に着く周は 2・5・8・11・14・17・20（10章11）
     const PLAN_PLACE = n => n<=1?0 : n<=4?1 : n<=7?2 : n<=10?3 : n<=13?4 : n<=16?5 : n<=19?6 : 7;
 
@@ -235,9 +235,14 @@ async function runOnce(page, skill, seed, sets, trace) {
     //   このまま釣り続けて増える量 vs 転生してパークを買って増える量。
     // 「欲しいものが買えたか」では決めない（周の序盤で立ってしまうため）
     function worthPrestige(t, earn, openedAtStart){
-      // 例外：移動手段を買ったら、その周にいる意味は無い（次の周から効く）
+      // 例外1：移動手段を買ったら、その周にいる意味は無い（次の周から効く）
       if (S.unlockedPlace.filter(Boolean).length > openedAtStart) return true;
       if (t < ASSUME.minRunSec) return false;
+      // 例外2：次の移動手段が射程に入っていたら、買うまで転生しない。
+      //        これが溜め周を長くする（仕様書2章）
+      for (const it of shopList())
+        if (it.kind === 'move'
+            && (it.price - S.money) / Math.max(1e-9, incomeNow()) <= ASSUME.lookSec) return false;
 
       // このまま続けたら、あと lookSec 秒で稼ぎが何割増えるか
       const inc = Math.max(1e-9, incomeNow());
@@ -452,10 +457,10 @@ else {
   console.log('─'.repeat(78));
   const row = (n, v, target) => console.log(('  '+n).padEnd(30, ' ') + String(v).padEnd(26,' ') + (target||''));
   row('通しの周数', out.map(r=>r.runs).join(' / '), '目標 25周前後');
-  row('通しの時間', out.map(r=>fs2(r.totalSec)).join(' / '), '目標 約2時間13分');
-  row('1周目の長さ', out.map(r=>fs2(r.firstRunSec)).join(' / '), '目標 7分44秒（溜め76投）');
-  row('最後の周の長さ', out.map(r=>fs2(r.lastRunSec)).join(' / '), '目標 1分51秒（凱旋15投）');
-  row('一周の投数・自分の竿(平均)', out.map(r=>Math.round(r.avgCasts)).join(' / '), '目標 溜め76／跳ね23／助走38');
+  row('通しの時間', out.map(r=>fs2(r.totalSec)).join(' / '), '目標 約2時間5分');
+  row('1周目の長さ', out.map(r=>fs2(r.firstRunSec)).join(' / '), '目標 2分20秒（導入23投）');
+  row('最後の周の長さ', out.map(r=>fs2(r.lastRunSec)).join(' / '), '目標 4分26秒（普通36投）');
+  row('一周の投数・自分の竿(平均)', out.map(r=>Math.round(r.avgCasts)).join(' / '), '目標 溜め76／普通36（平均45）');
   row('  同・自動もあわせた総数', out.map(r=>Math.round(r.avgAllCasts)).join(' / '), '');
   row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 20周目');
   row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 25周目');
