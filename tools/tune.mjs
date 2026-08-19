@@ -34,17 +34,31 @@ const KEYS = ['move2', ...Object.values(MOVE_OF), 'infCoolGrow', 'infRodGrow', '
 const val = {};
 for (const k of KEYS) val[k] = readTune(k);
 
+/* 一巡ごとに AVG 回まわして平均を見る。
+   一回の測定は乱数で1.5倍ぶれるので、1回だと信号よりノイズが大きくなる
+   （ずれ平均が縮まらず振動する）。ぶれは仕様として許すと決めたので、
+   **合わせるのは平均**である（2章・10章11）。 */
+const AVG = parseInt((process.argv.find(a => a.startsWith('--avg=')) || '--avg=3').split('=')[1], 10);
 const run = () => {
   const sets = Object.entries(val).flatMap(([k, v]) => ['--set', `${k}=${v}`]);
-  const out = execFileSync('node', [SIM, '--runs=1', '--json', ...sets], { encoding: 'utf8', maxBuffer: 1 << 26 });
-  return JSON.parse(out).out[0];
+  const out = execFileSync('node', [SIM, `--runs=${AVG}`, '--json', ...sets], { encoding: 'utf8', maxBuffer: 1 << 26 });
+  const runs = JSON.parse(out).out;
+  // 周ごとの投数を平均する
+  const per = {}, cnt = {};
+  for (const r of runs) for (const x of r.perRun) { per[x.no] = (per[x.no] || 0) + x.casts; cnt[x.no] = (cnt[x.no] || 0) + 1; }
+  for (const k of Object.keys(per)) per[k] = per[k] / cnt[k];
+  return {
+    per,
+    runs: runs.reduce((a, r) => a + r.runs, 0) / runs.length,
+    totalSec: runs.reduce((a, r) => a + r.totalSec, 0) / runs.length,
+  };
 };
 
 const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
 
 for (let round = 1; round <= ROUNDS; round++) {
   const r = run();
-  const per = Object.fromEntries(r.perRun.map(x => [x.no, x.casts]));
+  const per = r.per;
 
   // 1. 溜め周：短ければ移動手段を高く、長ければ安く（1周ずつ）
   //    ただし「崩れ」を先に見る。値段が届かなくなると周が一気に短くなるので、
@@ -63,7 +77,7 @@ for (let round = 1; round <= ROUNDS; round++) {
   if (per[1]) val.move2 = Math.round(val.move2 * Math.pow(clamp(23 / per[1], 0.8, 1.4), 0.4));
 
   // 2. 普通周：長すぎるなら転生の魅力が足りない＝無限段を安く（伸び率を下げる）
-  const norm = r.perRun.filter(x => x.no !== 1 && !TAME.includes(x.no)).map(x => x.casts);
+  const norm = Object.entries(per).filter(([n]) => +n !== 1 && !TAME.includes(+n)).map(([, v]) => v);
   if (norm.length) {
     const avg = norm.reduce((a, b) => a + b, 0) / norm.length;
     const f = clamp(Math.pow(36 / avg, 0.15), 0.97, 1.03);   // 長い→伸び率を下げる
@@ -72,9 +86,10 @@ for (let round = 1; round <= ROUNDS; round++) {
     var lastAvg = avg;
   }
 
-  const dev = r.perRun.reduce((a, x) => a + Math.abs(x.casts - target(x.no)), 0) / r.perRun.length;
-  console.log(`${String(round).padStart(2)}回目  周数${String(r.runs).padStart(3)}  通し${Math.round(r.totalSec / 60)}分  `
-    + `溜め[${TAME.map(n => per[n] || '-').join(' ')}]  普通平均${Math.round(lastAvg || 0)}  ずれ平均${dev.toFixed(1)}投`);
+  const ns = Object.keys(per).map(Number);
+  const dev = ns.reduce((a, n) => a + Math.abs(per[n] - target(n)), 0) / ns.length;
+  console.log(`${String(round).padStart(2)}回目  周数${String(Math.round(r.runs)).padStart(3)}  通し${Math.round(r.totalSec / 60)}分  `
+    + `溜め[${TAME.map(n => Math.round(per[n] || 0)).join(' ')}]  普通平均${Math.round(lastAvg || 0)}  ずれ平均${dev.toFixed(1)}投`);
 }
 
 console.log('\n出た値');

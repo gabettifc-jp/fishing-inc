@@ -457,10 +457,10 @@ else {
   console.log('─'.repeat(78));
   const row = (n, v, target) => console.log(('  '+n).padEnd(30, ' ') + String(v).padEnd(26,' ') + (target||''));
   row('通しの周数', out.map(r=>r.runs).join(' / '), '目標 25周前後');
-  row('通しの時間', out.map(r=>fs2(r.totalSec)).join(' / '), '目標 約2時間5分');
-  row('1周目の長さ', out.map(r=>fs2(r.firstRunSec)).join(' / '), '目標 2分20秒（導入23投）');
-  row('最後の周の長さ', out.map(r=>fs2(r.lastRunSec)).join(' / '), '目標 4分26秒（普通36投）');
-  row('一周の投数・自分の竿(平均)', out.map(r=>Math.round(r.avgCasts)).join(' / '), '目標 溜め76／普通36（平均45）');
+  row('通しの時間', out.map(r=>fs2(r.totalSec)).join(' / '), '目標 2〜3時間');
+  row('1周目の長さ', out.map(r=>fs2(r.firstRunSec)).join(' / '), '目標 約2分（導入20投）');
+  row('最後の周の長さ', out.map(r=>fs2(r.lastRunSec)).join(' / '), '—');
+  row('一周の投数・自分の竿(平均)', out.map(r=>Math.round(r.avgCasts)).join(' / '), '目標 35〜50投');
   row('  同・自動もあわせた総数', out.map(r=>Math.round(r.avgAllCasts)).join(' / '), '');
   row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 20周目');
   row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 25周目');
