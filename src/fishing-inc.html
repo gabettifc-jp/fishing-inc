@@ -238,15 +238,15 @@ const TUNE_DEF = [
   ['capWaitLo','10. 効果の天井', '待ち時間の下限（秒まで）',             1.0,  'n'],
 
   // 11. 周
-  ['runTarget1',  '11. 周', '1周目の目標時間（秒）',                     180,  'n'],
-  ['runTarget25', '11. 周', '25周目の目標時間（秒）',                    900,  'n'],
-  ['runTargetStep','11. 周', '伸ばし方（1周ごとに +秒）',                30,   'n'],
+  ['castTarget1', '11. 周', '1周目の目標投数（導入）',                  20,   'n'],
+  ['castTarget',  '11. 周', 'それ以外の周の目標投数',                   45,   'n'],
+  ['runCountTarget','11. 周', '通しの周数の目安',                        23,   'n'],
 
   // 12. 画面
   ['scrW',        '12. 画面', '画面の横幅',                              720,  'n'],
   ['scrH',        '12. 画面', '画面の縦',                                405,  'n'],
-  ['symW',        '12. 画面', '符号一個の幅',                            32,   'n'],
-  ['symGap',      '12. 画面', '符号のあいだの幅',                        16,   'n'],
+  ['beatW',       '12. 画面', '一拍の幅（帯20拍ぶん÷20）',              27,   'n'],
+  ['bandPad',     '12. 画面', '帯の左右の余白',                          90,   'n'],
   ['bandH',       '12. 画面', '譜面の帯の高さ',                          80,   'n'],
   ['bandPop',     '12. 画面', '帯がポップする速さ（秒）',                0.2,  'n'],
   ['floatSize',   '12. 画面', '浮きの大きさ',                            8,    'n'],
@@ -515,7 +515,8 @@ function unitPrice(p,g){
 function moveCost(p){ return [0,T.move2,T.move3,T.move4,T.move5,T.move6,T.move7,T.move8][p]; }
 function nextPlace(){ return S.place+1 <= 7 ? S.place+1 : -1; }
 function presGain(earn){ return Math.floor(pow(Math.max(0,earn)/T.presDiv, T.presExp)); }
-function runTarget(no){ return T.runTarget1 + T.runTargetStep*(no-1); }
+// その周の目標投数（10章11）。導入だけ短い
+function castTarget(no){ return no===1 ? T.castTarget1 : T.castTarget; }
 function bossReady(p){ return has('opn7') && S.dex[p].slice(0,8).every(Boolean); }
 
 /* 2章 桁の表記：日本語の桁は使わない。15桁までは全部数字、16桁から指数表記 */
@@ -1119,22 +1120,27 @@ function drawBand(){
   box(0,y,cv.width,h,'#0a0f13','#3a4d59');            // 全釣り場で同じ色
   if (grow<1) return;
   const syms = r.tl.syms;
-  const totalW = syms.length*T.symW + (syms.length-1)*T.symGap;
-  const x0 = Math.floor((cv.width-totalW)/2);
-  // 符号
+  // 帯は20拍ぶんの固定幅（カウントイン4拍 ＋ 譜面の枠16拍）。符号数によらず同じ（9章）
+  const beats = T.countInBeats + frameBeats();
+  const bw = beats * T.beatW;
+  const x0 = Math.floor((cv.width - bw)/2);
+  const px = t => x0 + (t / T.beat) * T.beatW;        // 秒 -> 画面のx
+  // カウントインの区間（符号を置かない。ここで拍を掴む）
+  box(x0, y+8, T.countInBeats*T.beatW, T.bandH-16, '#0d151b');
+  for (let k=1;k<=T.countInBeats;k++)
+    box(x0 + k*T.beatW - 1, y+T.bandH/2-2, 2, 4, '#3a4d59');
+  // 符号（音価の長さぶんの幅で置く）
   for (let i=0;i<syms.length;i++){
-    const s = syms[i];
-    const x = x0 + i*(T.symW+T.symGap);
+    const sy = syms[i];
+    const x = px(sy.start), w = (sy.dur / T.beat) * T.beatW;
     const res = r.res[i];
     const col = res==='hit' ? '#7fd6a0' : res==='graze' ? '#e8c05a' : res==='miss' ? '#e0736b' : '#e8eef2';
-    if (s.long){ box(x, y+T.bandH/2-4, T.symW, 8, col); }
-    else       { box(x+T.symW/2-4, y+T.bandH/2-4, 8, 8, col); }
+    if (sy.long){ box(x, y+T.bandH/2-4, Math.max(6,w-3), 8, col); }
+    else        { box(x, y+T.bandH/2-4, 8, 8, col); }
   }
-  // 光の線が左から右へ
-  const span = r.tl.total;
-  const p = (r.t) / Math.max(0.0001, span);
-  const lx = x0 + p*totalW;
-  ctx.fillStyle = r.t<0 ? '#5b6d78' : '#ffffff';
+  // 光の線が左から右へ。カウントインのあいだは鈍い色
+  const lx = px(r.t);
+  ctx.fillStyle = (r.t < T.beat*T.countInBeats) ? '#5b6d78' : '#ffffff';
   ctx.fillRect(Math.floor(lx), y+8, 2, T.bandH-16);
   // 連続の演出
   if (combo>0) txt('×'+combo+'!', 12, y+T.bandH/2-10, 16, '#7fd6a0');
@@ -1302,7 +1308,7 @@ function drawRecOverlay(){
   txt('記録（この周）', 30, 28, 14, '#e8c05a');
   const sec = (performance.now()-S.rec.t0)/1000;
   const L = [
-    ['周', S.run+'周目（目標 '+fmtSec(runTarget(S.run))+'）'],
+    ['周', S.run+'周目（目標 '+castTarget(S.run)+'投）'],
     ['所要時間', fmtSec(sec)],
     ['釣った回数', S.rec.casts+'投／'+(S.rec.perfect+S.rec.soso)+'匹'],
     ['格ごと', GRADES.map((g,i)=>g+' '+S.rec.byGrade[i]).join('　')],
@@ -1429,7 +1435,7 @@ function recAll(){
     通し:{周数:S.run, 総時間秒:S.totalSec+cur.sec, 図鑑:dexCount()+'/40',
           クリア周:S.cleared?S.clearRun:null, クリア総時間秒:S.cleared?S.clearSec:null},
     周ごと:[...S.history, cur].map(r=>({
-      周:r.no, 所要秒:+(r.sec||0).toFixed(1), 目標秒:runTarget(r.no),
+      周:r.no, 所要秒:+(r.sec||0).toFixed(1), 目標投数:castTarget(r.no),
       投数:r.casts, 雑魚:r.byGrade[0], 並:r.byGrade[1], 良型:r.byGrade[2],
       大物:r.byGrade[3], 超大物:r.byGrade[4],
       稼ぎ:r.earn, 転生でもらった量:r.presGot,
@@ -1457,7 +1463,7 @@ function refreshRecTable(){
   let h='<table><tr><th>周</th><th>所要</th><th>目標</th><th>投</th><th>稼ぎ</th>'
       + '<th>転生</th><th>完/そ/逃</th><th>連続</th></tr>';
   for (const r of rows){
-    h+='<tr><td>'+r.周+'</td><td>'+fmtSec(r.所要秒)+'</td><td>'+fmtSec(r.目標秒)+'</td>'
+    h+='<tr><td>'+r.周+'</td><td>'+fmtSec(r.所要秒)+'</td><td>'+r.目標投数+'投</td>'
      + '<td>'+r.投数+'</td><td class="l">'+yen(r.稼ぎ)+'</td><td>'+r.転生でもらった量+'</td>'
      + '<td>'+r.完璧+'/'+r.そこそこ+'/'+r.逃す+'</td><td>'+r.連続の最高+'</td></tr>';
   }
