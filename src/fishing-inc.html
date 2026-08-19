@@ -157,6 +157,7 @@ const TUNE_DEF = [
 
   // 9. 転生
   ['presExp',         '9. 転生', '式の指数',                             0.3,  'n'],
+  ['dexDoneMult',     '10. パーク（無限段）', '図鑑を揃えたときの恒久倍率',    20,  'n'],
   ['infCoolBase',     '10. パーク（無限段）', 'クーラー売値・1段目の値段',      40,  'n'],
   ['infCoolGrow',     '10. パーク（無限段）', '同・値段の伸び率',              1.8, 'n'],
   ['infCoolEff',      '10. パーク（無限段）', '同・効果の伸び率（売値の倍率）', 1.6, 'n'],
@@ -478,8 +479,17 @@ function infRodCount(){
   if (n<=0) return 0;
   return Math.max(n, Math.floor(pow(T.infRodEff, n)));
 }
+// 図鑑を揃えたか（クラーケン以外の71種）。揃うと恒久倍率が一段跳ねる
+function dexDone(){
+  for (let p=0;p<8;p++) for (let k=0;k<9;k++){
+    if (p===7 && k===8) continue;          // クラーケンは除く
+    if (!S.dex[p][k]) return false;
+  }
+  return true;
+}
 function sellMult(){
   let m = pow(1+coolEff(), S.tools.cool) * infCoolMult();
+  if (dexDone()) m *= T.dexDoneMult;
   if (has('opn8')) m *= (1 + T.opn8v*dexCount());
   if (has('opn7') && placeAllCaught(S.place)) m *= (1 + T.dexAllBonus);
   return m;

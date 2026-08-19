@@ -56,7 +56,7 @@ async function runOnce(page, skill, seed, sets, trace) {
       deepPref: 0.5,
       // クラーケンをいつ釣るか（プレイヤーの選択。仕様書2章）。
       // この周より前は、予兆が出ても押さない＝主を釣らない
-      krakenFromRun: 25,
+      krakenFromRun: 23,
       // 打ち切り（無限ループ避け）
       maxRuns: 200, maxTotalSec: 3600 * 12,
     };
@@ -93,7 +93,7 @@ async function runOnce(page, skill, seed, sets, trace) {
     /* --- 計画（10章11）。--plan のときはこの投数と釣り場で回す ------------- */
     // 2拍（10章11）。導入23／溜め76（4・7・10・13・16・19）／それ以外36
     const TAME = {4:1,7:1,10:1,13:1,16:1,19:1};
-    const PLAN_CASTS = {}; for (let n=1;n<=25;n++) PLAN_CASTS[n] = n===1?23 : TAME[n]?76 : 36;
+    const PLAN_CASTS = {}; for (let n=1;n<=23;n++) PLAN_CASTS[n] = n===1?20 : 45;
     // 釣り場に着く周は 2・5・8・11・14・17・20（10章11）
     const PLAN_PLACE = n => n<=1?0 : n<=4?1 : n<=7?2 : n<=10?3 : n<=13?4 : n<=16?5 : n<=19?6 : 7;
 
@@ -310,7 +310,7 @@ async function runOnce(page, skill, seed, sets, trace) {
     let totalSec = 0, cleared = false, clearRun = 0, clearSec = 0;
     let omenCastsLocal = 0;
 
-    const LAST = plan ? 25 : ASSUME.maxRuns;
+    const LAST = plan ? 23 : ASSUME.maxRuns;
     for (let runNo = 1; runNo <= LAST && !cleared; runNo++) {
       S.run = runNo; S.rec = newRunRecord(runNo);
       combo = 0; bestComboRun = 0; creel = 0; omenCasts = 0;
