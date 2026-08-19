@@ -48,6 +48,8 @@ async function runOnce(page, skill, seed, sets, trace) {
       stallSec: 900,
       // 一周の下限（これより短くは終わらせない）
       minRunSec: 30,
+      // 「このまま続けたら」を何秒先まで見るか
+      lookSec: 480,
       // 道具を買う基準：その一段で増える秒あたり稼ぎで、値段の元が取れるまでの秒数
       paybackSec: 60,
       // 深海を目指す度合い（全釣り場が開いた後、深海の稼ぎが最良の何割あれば行くか）
@@ -229,14 +231,34 @@ async function runOnce(page, skill, seed, sets, trace) {
     // その周の目標に手が届いたか。
     // 移動手段が残っているあいだは「移動手段を買った」だけを見る。
     // パークで切ると、一番安いパークがいつでも買えるので周が数投で終わってしまう
-    function reachedStep(earn, openedAtStart){
+    // 転生したほうが得か（仕様書2章）。
+    //   このまま釣り続けて増える量 vs 転生してパークを買って増える量。
+    // 「欲しいものが買えたか」では決めない（周の序盤で立ってしまうため）
+    function worthPrestige(t, earn, openedAtStart){
+      // 例外：移動手段を買ったら、その周にいる意味は無い（次の周から効く）
       if (S.unlockedPlace.filter(Boolean).length > openedAtStart) return true;
-      // パークで切る合図：次に狙うもの（未取得パーク or 無限段の次の段）に届いたら
-      const avail = PERKS.filter(pk => !has(pk.id));
-      const cheapest = Math.min(
-        avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity,
-        infPrice('cool'), infPrice('rod'));
-      return (S.pres + presGain(earn)) >= cheapest;
+      if (t < ASSUME.minRunSec) return false;
+
+      // このまま続けたら、あと lookSec 秒で稼ぎが何割増えるか
+      const inc = Math.max(1e-9, incomeNow());
+      const keepGain = (inc * ASSUME.lookSec) / Math.max(1, earn);
+
+      // 転生したら、パークを何段ぶん買えるか → 効果の倍率
+      let pres = S.pres + presGain(earn), tiers = 0, ic = S.inf.cool, ir = S.inf.rod;
+      const taken = {};
+      for (let k = 0; k < 300; k++) {
+        const avail = PERKS.filter(pk => !has(pk.id) && !taken[pk.id]);
+        const pc = T.infCoolBase * Math.pow(T.infCoolGrow, ic);
+        const pr = T.infRodBase  * Math.pow(T.infRodGrow,  ir);
+        const cheapPerk = avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity;
+        const m = Math.min(cheapPerk, pc, pr);
+        if (pres < m) break;
+        pres -= m; tiers++;
+        if (m === pc) ic++; else if (m === pr) ir++;
+        else taken[avail.find(pk => T[pk.costKey] === cheapPerk).id] = true;
+      }
+      const presMult = Math.pow(T.infCoolEff, tiers) - 1;
+      return presMult > keepGain;
     }
     function doBuys() {
       let bought = false;
@@ -349,7 +371,7 @@ async function runOnce(page, skill, seed, sets, trace) {
         //   次の一歩＝まだ手に入れていないもののうち、いま一番手前にあるもの。
         //   その一歩に T.presFar 秒以上かかると分かったら転生する。
         //   周の役割（溜め・跳ね・助走）はゲームは知らない。3拍は値段から出てくる。
-        const signal = reachedStep(earn, openedAtStart0) || nextStepSec(t, earn) >= T.presFar;
+        const signal = worthPrestige(t, earn, openedAtStart0) || nextStepSec(t, earn) >= T.presFar;
         if (t > ASSUME.minRunSec && signal) {
           if (trace && runNo<=1) tr.push({t:+t.toFixed(0), money:Math.round(S.money),
             inc:+incomeNow().toFixed(2), why:'転生', shop:shopList().map(i=>i.kind+':'+i.name+':'+Math.round(i.price)).join(',')});
