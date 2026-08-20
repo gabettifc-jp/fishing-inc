@@ -284,9 +284,11 @@ const TUNE_DEF = [
   ['tapVol',      '音（11章）', '打鍵音の音量（8章0）',                   0.22, 'n'],
   ['melOn',       '音（11章）', '押した音を旋律にする（11章）',            1,    'b'],
   ['melBase',     '音（11章）', '旋律のいちばん低い音（Hz）',            1046.5, 'n'],
-  ['melWave',     '音（11章）', '旋律の波形（0=矩形 1=三角 2=鋸）',        0,    'n'],
-  ['melAtk',      '音（11章）', '旋律の立ち上がり（ミリ秒）',              2,    'n'],
-  ['melDec',      '音（11章）', '旋律の減衰（ミリ秒）',                   35,   'n'],
+  ['melMode',     '音（11章）', '旋律の決め方（0=譜面の形 1=押すたびに昇る）', 1, 'n'],
+  ['melHold',     '音（11章）', '長音は押しているあいだ伸ばす',            0,    'b'],
+  ['melWave',     '音（11章）', '旋律の波形（0=矩形 1=三角 2=鋸）',        1,    'n'],
+  ['melAtk',      '音（11章）', '旋律の立ち上がり（ミリ秒）',              1,    'n'],
+  ['melDec',      '音（11章）', '旋律の減衰（ミリ秒）',                  240,   'n'],
   ['melRel',      '音（11章）', '長音を離したときの止まり方（ミリ秒）',    60,   'n'],
   ['sndOn',       '音（11章）', '音を鳴らす',                            1,    'b'],
   ['bgmOn',       '音（11章）', 'BGMを鳴らす',                           1,    'b'],
@@ -655,6 +657,9 @@ function bandSec(){ return beatSec() * (T.countInBeats + frameBeats()); }
    音階の端では折り返す（頭打ちにすると同じ音が続く） */
 function melodyOf(chart){
   const top = MEL_RATIO.length-1;
+  // 0=譜面の形で決まる／1=押すたびに昇る（10章「旋律の決め方」）
+  if (Math.round(T.melMode) === 1)
+    return chart.map((_,i)=>Math.min(i, top));
   const out = []; let k = 3;                            // 真ん中から始める
   for (let i=0;i<chart.length;i++){
     if (i>0){
@@ -1187,7 +1192,7 @@ function press(down){
     const sy0 = r.tl.syms[best];
     sy0.flash = performance.now()/1000;                // 符号が一瞬ふくらんで戻る（8章0）
     pressBack(aMs<=w0.hit ? 'hit' : 'graze', t - sy0.start,
-              r.tl.mel ? r.tl.mel[best] : null, sy0.long);
+              r.tl.mel ? r.tl.mel[best] : null, sy0.long && T.melHold);
   } else {
     if (!r.holding) return;
     r.holding = false;
