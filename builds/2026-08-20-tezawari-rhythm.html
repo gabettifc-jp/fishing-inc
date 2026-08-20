@@ -35,6 +35,11 @@
     max-height:190px;overflow:auto;white-space:pre}
   .row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
   .warn{color:#e0a06b;font-size:11px}
+  .tg{margin:8px 0 10px}
+  .tg .t{font-size:12px;color:#9fd6ff;margin-bottom:3px}
+  .tg .bs{display:flex;gap:4px;flex-wrap:wrap}
+  .tg button{font-size:11px;padding:3px 7px}
+  .tg button.on{background:#2b4a5c;border-color:#5b8fa8;color:#fff}
 </style>
 </head>
 <body>
@@ -53,9 +58,18 @@
     <p class="hint" id="chartNow"></p>
   </div>
   <div id="side">
+    <h2>試すもの ── 上から順に</h2>
+    <p class="hint">
+      押すと、その組み合わせに切り替わる。<br>
+      <b>押したら、投げて何回か遊んでから次を押す。</b><br>
+      比べるのは同じ行の中だけ。行をまたいで混ぜない。
+    </p>
+    <div id="try"></div>
+    <p class="hint" id="tryNow">いま：既定（8/19版と同じ）</p>
     <h2>直近10回の判定のずれ</h2>
     <div class="rec" id="rec">まだ無い</div>
-    <div id="knobs"></div>
+    <div class="row"><button id="bKnobs">つまみを全部出す</button></div>
+    <div id="knobs" style="display:none"></div>
   </div>
 </div>
 <script>
@@ -736,6 +750,78 @@ function drawBand(){
   if (r.tl.gapShort) txt('最小間隔が枠に収まらない（無視した）', x0, y+T.bandH+4, 11, '#e0a06b');
 }
 
+/* --- 試す組み合わせ -------------------------------------------------------
+   [行の名前, [[押す名前, 変えるつまみ], ...]]
+   同じ行の中だけで比べる。行をまたぐと何が効いたか分からなくなる。
+   ------------------------------------------------------------------------ */
+const TRY = [
+  ['1. 長音を押している感じ（いちばん大きい）', [
+    ['いまの作り（何も返らない）', {holdBar:0, holdSound:0, holdOkCue:0}],
+    ['帯が減るだけ',             {holdBar:1, holdSound:0, holdOkCue:0}],
+    ['持続音だけ',               {holdBar:0, holdSound:1, holdOkCue:0}],
+    ['繰り返し音だけ',           {holdBar:0, holdSound:2, holdOkCue:0}],
+    ['合格の合図だけ',           {holdBar:0, holdSound:0, holdOkCue:3}],
+    ['三つ全部',                 {holdBar:1, holdSound:1, holdOkCue:3}],
+  ]],
+  ['2. 離す位置と見た目', [
+    ['いまの作り',                   {holdBarLen:0, relHint:0, tight:0}],
+    ['見た目＝離す位置',             {holdBarLen:1, relHint:1, tight:0}],
+    ['見た目＝離す位置＋直後に符号', {holdBarLen:1, relHint:1, tight:1}],
+    ['いまの作り＋直後に符号',       {holdBarLen:0, relHint:0, tight:1}],
+    ['帯を8割の長さにする',          {holdBarLen:2, holdBarMul:0.8, relHint:1, tight:1}],
+  ]],
+  ['3. 押した瞬間の音', [
+    ['素のピッ（いまの作り）', {cueMode:0, tapKind:0, tapMs:35,  tapByGrade:0}],
+    ['コッ（速い打）',         {cueMode:0, tapKind:1, tapMs:35,  tapByGrade:0}],
+    ['ポーン（余韻）',         {cueMode:0, tapKind:2, tapMs:35,  tapByGrade:0}],
+    ['長め 60ms',              {cueMode:0, tapMs:60}],
+    ['長め 100ms',             {cueMode:0, tapMs:100}],
+    ['当たり／かすり／外しで鳴り分ける', {cueMode:0, tapByGrade:1}],
+  ]],
+  ['4. 押した瞬間の画面', [
+    ['白く光る（いまの作り）', {symKind:0, symGrow:4,  flashSec:0.12}],
+    ['弾ける',                 {symKind:3, symGrow:4,  flashSec:0.12}],
+    ['大きくなる',             {symKind:1, symGrow:4,  flashSec:0.12}],
+    ['色が変わる',             {symKind:2, symGrow:4,  flashSec:0.12}],
+    ['もっと大きく',           {symGrow:10}],
+    ['長く残す',               {flashSec:0.25}],
+  ]],
+  ['5. 窓の外で押したとき', [
+    ['判定線が光る', {outBack:0}],
+    ['画面が沈む',   {outBack:1}],
+    ['×を出す',      {outBack:2}],
+    ['何も出さない', {outBack:3}],
+  ]],
+  ['6. 合図の出し方（作りごと変わる。最後に）', [
+    ['押した瞬間に鳴らす（いまの作り）', {cueMode:0, bgmOn:1}],
+    ['曲に重ねたトラックで出す',         {cueMode:1, bgmOn:1}],
+  ]],
+];
+const tryBox = document.getElementById('try');
+function buildTry(){
+  tryBox.innerHTML = '';
+  TRY.forEach((row, gi)=>{
+    const d=document.createElement('div'); d.className='tg';
+    const t=document.createElement('div'); t.className='t'; t.textContent=row[0]; d.appendChild(t);
+    const bs=document.createElement('div'); bs.className='bs';
+    row[1].forEach(([name, set], bi)=>{
+      const b=document.createElement('button'); b.textContent=name;
+      b.onclick=()=>{
+        Object.assign(T, set);
+        holdSoundStop(); bgmStop(); bgmStart();
+        if (master) master.gain.value = T.sndVol;
+        buildKnobs(); showChart();
+        [...bs.children].forEach(c=>c.classList.remove('on'));
+        b.classList.add('on');
+        document.getElementById('tryNow').textContent =
+          'いま：' + row[0].replace(/（.*/,'') + ' → ' + name;
+      };
+      bs.appendChild(b);
+    });
+    d.appendChild(bs); tryBox.appendChild(d);
+  });
+}
+
 /* --- つまみの画面 -------------------------------------------------------- */
 const knobs = document.getElementById('knobs');
 function buildKnobs(){
@@ -795,9 +881,19 @@ function drawRec(){
 }
 document.getElementById('bOmen').onclick = ()=>{ nextOmen = true; };
 document.getElementById('bReset').onclick = ()=>{
-  Object.assign(T, DEF); buildKnobs(); bgmStop(); bgmStart(); showChart();
+  Object.assign(T, DEF); holdSoundStop(); buildKnobs(); bgmStop(); bgmStart(); showChart();
+  document.querySelectorAll('#try button').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tryNow').textContent = 'いま：既定（8/19版と同じ）';
 };
 
+document.getElementById('bKnobs').onclick = ()=>{
+  const k=document.getElementById('knobs');
+  const open = k.style.display==='none';
+  k.style.display = open ? '' : 'none';
+  document.getElementById('bKnobs').textContent = open ? 'つまみを隠す' : 'つまみを全部出す';
+};
+
+buildTry();
 buildKnobs();
 castRod();
 r.phase='idle';
