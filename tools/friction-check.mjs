@@ -126,6 +126,33 @@ const eff = await pg.evaluate(() => {
 });
 add(11, 'パークの全行に「いま → 取った後」が出るか', `${eff.全-eff.数の無い行.length}／${eff.全}行`, eff.数の無い行.length===0);
 
+/* 14. 道具の一行にも効果が出るか（9章 画面A） */
+const tools = await pg.evaluate(() => {
+  scr='A'; S.perks={opn1:true}; S.money=1e9; S.tools={bait:2,line:1,reel:1,cool:2,rod:1}; syncRods();
+  const list = shopList();
+  const miss = list.filter(i => { const t = toolEff(i); return !t || !(/→/.test(t)||/開く/.test(t)); });
+  const rate = list.filter(i => /稼ぎ/.test(toolEff(i))).map(i=>i.name);
+  return {全: list.length, 数の無い行: miss.map(i=>i.name), 倍率つき: rate};
+});
+add(14, '道具の全行に「いま → 買った後」が出るか',
+    `${tools.全-tools.数の無い行.length}／${tools.全}行`, tools.数の無い行.length===0);
+add(15, '稼ぎの倍率が付くのは、稼ぎが動く道具だけか',
+    tools.倍率つき.join('／') || 'なし',
+    !tools.倍率つき.includes('リール') && !tools.倍率つき.includes('釣り糸'));
+
+/* 15. 入れ食いは終盤にだけ効くか（10章10） */
+const iref = await pg.evaluate(() => {
+  const at = lv => { S.tools.bait=lv;
+    S.perks={};            const a = waitRange().lo;
+    S.perks={opn11:true};  const b = waitRange().lo;
+    return {lv, 素:+a.toFixed(2), 入れ食い:+b.toFixed(2)}; };
+  return [0,10,20,30].map(at);
+});
+const bites = iref.filter(r => r.入れ食い < r.素);
+add(16, '入れ食いが効き始める餌の段数',
+    bites.length ? `餌${bites[0].lv}段から（${bites[0].素}秒 → ${bites[0].入れ食い}秒）` : '一度も効かない',
+    bites.length > 0 && bites[0].lv >= 20);
+
 /* --- 出力 --- */
 const w = Math.max(...rows.map(r=>r.what.length));
 console.log('測った（つまらなさの流れの「測る」段）\n');
