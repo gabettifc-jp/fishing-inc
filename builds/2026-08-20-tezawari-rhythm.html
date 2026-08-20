@@ -108,7 +108,9 @@ const TUNE = [
   ['holdUnit',    '3. 長押し', '離す許容の指定',                  1,    's'],
   ['holdKeep',    '3. 長押し', '同・割合（長音の長さに対して）',  0.8,  'n'],
   ['holdKeepMs',  '3. 長押し', '同・ミリ秒（早く離してよい量）',  200,  'n'],
-  ['relHint',     '3. 長押し', '離す位置を帯に出す',              1,    'b'],
+  ['relHint',     '3. 長押し', '離す位置の目印',                  0,    's'],
+  ['holdBarLen',  '3. 長押し', '帯を描く長さ',                    0,    's'],
+  ['holdBarMul',  '3. 長押し', '同・倍率で決めるときの倍率',      0.8,  'n'],
   ['tight',       '3. 長押し', '符号の間隔を詰める（長音の直後に符号）', 0, 'b'],
 
   // 4. 返し（音）
@@ -182,6 +184,8 @@ const TUNE = [
 // 選ぶ型の選択肢。左が既定（＝「入っている」側）
 const CHOICE = {
   outMode:   ['符号を消さない（窓の外は空振り）', 'いまの作り（最寄りに割り当てる）'],
+  relHint:   ['符号の終わりに出す（いまの作り）', '離してよい位置に出す', '出さない'],
+  holdBarLen:['符号の長さいっぱい（いまの作り）', '離してよい位置まで（見た目＝離すタイミング）', '倍率で決める'],
   holdBar:   ['いまの作り（長さのある帯。変わらない）', '押している間、残りが減っていく', '点にする（長さを描かない）'],
   holdSound: ['無し（いまの作り）', '持続音', '繰り返し音'],
   holdOkCue: ['無し（いまの作り）', '音', '光る', '音と光る'],
@@ -395,6 +399,11 @@ function windows(){
   const d = T.deepOn ? DEEP[place0()] : 1;
   const hit = T.winHit*d, grz = T.winGraze*d;
   return {hit, graze: Math.max(grz, hit)};
+}
+// 離してよい位置（符号の頭から何秒か）。holdOk の裏返しで、同じつまみから引く
+function releaseAt(sym){
+  const v = T.holdUnit===1 ? sym.dur - T.holdKeepMs/1000 : sym.dur * T.holdKeep;
+  return Math.max(0, Math.min(sym.dur, v));
 }
 // 長音を保持できたか
 function holdOk(sym, held){
@@ -692,7 +701,15 @@ function drawBand(){
     if (s.long && T.holdBar===2){
       box(x-grow2/2, y+T.bandH/2-4-grow2/2, 8+grow2, 8+grow2, col);    // 点にする
     } else if (s.long){
-      const full = Math.max(6, wpx-3);
+      const span = Math.max(6, wpx-3);                    // 符号の長さいっぱい
+      const relPx = span * (releaseAt(s)/Math.max(0.0001,s.dur));  // 離してよい位置
+      // 帯を描く長さ。判定は変えない。見た目だけを合わせる
+      const full = T.holdBarLen===1 ? Math.max(6, relPx)
+                 : T.holdBarLen===2 ? Math.max(6, span*T.holdBarMul)
+                 : span;
+      if (T.holdBarLen!==0){                              // 詰めた分は薄い影で残す
+        box(x+full, y+T.bandH/2-2, Math.max(0,span-full), 4, '#1a2730');
+      }
       if (held2 && T.holdBar===1){
         // 押している間、残りが減っていく。通った分は薄く残す
         const done = Math.max(0, Math.min(full, px(r.t) - x));
@@ -701,7 +718,8 @@ function drawBand(){
       } else {
         box(x, y+T.bandH/2-4-grow2/2, full, 8+grow2, col);
       }
-      if (T.relHint) box(x+full-2, y+T.bandH/2-10, 2, 20, '#9fd6ff');
+      if (T.relHint===0)      box(x+full-2,  y+T.bandH/2-10, 2, 20, '#9fd6ff');
+      else if (T.relHint===1) box(x+relPx-1, y+T.bandH/2-12, 2, 24, '#9fd6ff');
       // 保持が合格に届いた合図（光る側）
       if (held2 && (T.holdOkCue===2||T.holdOkCue===3) && r.tNow - r.holdOkAt < T.flashSec)
         box(x-2, y+T.bandH/2-12, full+4, 24, 'rgba(127,214,160,0.35)');
