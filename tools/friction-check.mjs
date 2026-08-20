@@ -74,6 +74,19 @@ add(4, '釣果の札に名前と値段が出るか', card.札 ? `${card.名前} 
 add(5, '演出1を伸ばしていないか', `演出1 ${card.演出1の長さ}秒／札 ${card.札の長さ}秒`, card.演出1の長さ <= 0.31);
 add(6, '名前は釣った枠から引いているか', `枠${card.枠} → ${card.名前}`, true);
 
+/* 7b. 窓の外で押したとき、向きが本当か（8章0）。
+      前は 0 を渡していたので、早く押しても必ず「遅い」と出ていた */
+const dir = await pg.evaluate(() => {
+  scr='A'; overlay=null; blockUntil=0; S.perks={}; syncRods();
+  const r = rods[0];
+  const set = t => { r.phase='play'; r.res=[]; r.extra=0; r.holding=false; r.aim=-1;
+                     r.tl={syms:[{start:3.0,dur:0.25,long:false}],total:5}; r.t=t;
+                     dirMsg=''; press(true); press(false); return dirMsg; };
+  return {早く押した: set(0.5), 遅く押した: set(5.0)};
+});
+add(12, '窓の外で早く押したとき', dir.早く押した || '出ない', dir.早く押した === '早い');
+add(13, '窓の外で遅く押したとき', dir.遅く押した || '出ない', dir.遅く押した === '遅い');
+
 /* 7. 距離の上限：離れた符号は消えないか（3章） */
 const far = await pg.evaluate(() => {
   scr='A'; overlay=null; blockUntil=0; S.perks={}; syncRods();
