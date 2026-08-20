@@ -40,6 +40,15 @@
   .tg .bs{display:flex;gap:4px;flex-wrap:wrap}
   .tg button{font-size:11px;padding:3px 7px}
   .tg button.on{background:#2b4a5c;border-color:#5b8fa8;color:#fff}
+  #ab .q{font-size:13px;color:#9fd6ff;margin:2px 0 6px}
+  #ab .side{display:flex;gap:6px;margin:4px 0}
+  #ab .side div{flex:1 1 0;padding:5px 6px;border:1px solid var(--line);border-radius:3px;
+    background:#0d151b;font-size:12px}
+  #ab .side div.on{border-color:#9fd6ff;background:#16303c;color:#fff}
+  #ab .big{font-size:12px;color:var(--dim);margin:6px 0 2px}
+  #ab button{margin:2px 3px 2px 0}
+  #ab .done{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
+    background:#0a1116;border:1px solid var(--line);border-radius:3px;padding:6px;white-space:pre}
 </style>
 </head>
 <body>
@@ -58,14 +67,14 @@
     <p class="hint" id="chartNow"></p>
   </div>
   <div id="side">
-    <h2>試すもの ── 上から順に</h2>
-    <p class="hint">
-      押すと、その組み合わせに切り替わる。<br>
-      <b>押したら、投げて何回か遊んでから次を押す。</b><br>
-      比べるのは同じ行の中だけ。行をまたいで混ぜない。
-    </p>
-    <div id="try"></div>
-    <p class="hint" id="tryNow">いま：既定（8/19版と同じ）</p>
+    <h2>どっち？</h2>
+    <div id="ab"></div>
+    <div class="row"><button id="bTry">ひとつずつ試す（畳んである）</button></div>
+    <div id="tryWrap" style="display:none">
+      <p class="hint">押すと、その組み合わせに切り替わる。比べるのは同じ行の中だけ。</p>
+      <div id="try"></div>
+      <p class="hint" id="tryNow">いま：既定（8/19版と同じ）</p>
+    </div>
     <h2>直近10回の判定のずれ</h2>
     <div class="rec" id="rec">まだ無い</div>
     <div class="row"><button id="bKnobs">つまみを全部出す</button></div>
@@ -653,6 +662,11 @@ function draw(){
   txt(GRADES[r.grade]+'（'+(r.chart?r.chart.length:0)+'符号）'+(r.omen?'  予兆':''),
       W-10, 5, 12, '#8fa3b0', 'right');
 
+  if (AB.on){
+    const nm = AB.side===0 ? '甲' : '乙';
+    box(W/2-26, 30, 52, 26, '#16303c', '#9fd6ff');
+    txt(nm, W/2, 34, 18, '#ffffff', 'center');
+  }
   if (r.phase==='play') drawBand();
 
   // 判定の言葉／早い遅い
@@ -755,48 +769,138 @@ function drawBand(){
    同じ行の中だけで比べる。行をまたぐと何が効いたか分からなくなる。
    ------------------------------------------------------------------------ */
 const TRY = [
-  ['1. 長音を押している感じ（いちばん大きい）', [
-    ['いまの作り（何も返らない）', {holdBar:0, holdSound:0, holdOkCue:0}],
-    ['帯が減るだけ',             {holdBar:1, holdSound:0, holdOkCue:0}],
-    ['持続音だけ',               {holdBar:0, holdSound:1, holdOkCue:0}],
-    ['繰り返し音だけ',           {holdBar:0, holdSound:2, holdOkCue:0}],
-    ['合格の合図だけ',           {holdBar:0, holdSound:0, holdOkCue:3}],
-    ['三つ全部',                 {holdBar:1, holdSound:1, holdOkCue:3}],
+  ['長音を押している感じ', ['holdBar','holdSound','holdOkCue'], [
+    ['何も返らない（いまの作り）', {holdBar:0, holdSound:0, holdOkCue:0}],
+    ['帯が減る',                   {holdBar:1, holdSound:0, holdOkCue:0}],
+    ['持続音',                     {holdBar:0, holdSound:1, holdOkCue:0}],
+    ['繰り返し音',                 {holdBar:0, holdSound:2, holdOkCue:0}],
+    ['合格の合図',                 {holdBar:0, holdSound:0, holdOkCue:3}],
+    ['三つ全部',                   {holdBar:1, holdSound:1, holdOkCue:3}],
   ]],
-  ['2. 離す位置と見た目', [
-    ['いまの作り',                   {holdBarLen:0, relHint:0, tight:0}],
-    ['見た目＝離す位置',             {holdBarLen:1, relHint:1, tight:0}],
-    ['見た目＝離す位置＋直後に符号', {holdBarLen:1, relHint:1, tight:1}],
-    ['いまの作り＋直後に符号',       {holdBarLen:0, relHint:0, tight:1}],
-    ['帯を8割の長さにする',          {holdBarLen:2, holdBarMul:0.8, relHint:1, tight:1}],
+  ['離す位置と見た目', ['holdBarLen','relHint','holdBarMul'], [
+    ['いまの作り',       {holdBarLen:0, relHint:0, holdBarMul:0.8}],
+    ['見た目＝離す位置', {holdBarLen:1, relHint:1, holdBarMul:0.8}],
+    ['帯を8割の長さに',  {holdBarLen:2, relHint:1, holdBarMul:0.8}],
+    ['帯を6割の長さに',  {holdBarLen:2, relHint:1, holdBarMul:0.6}],
   ]],
-  ['3. 押した瞬間の音', [
-    ['素のピッ（いまの作り）', {cueMode:0, tapKind:0, tapMs:35,  tapByGrade:0}],
-    ['コッ（速い打）',         {cueMode:0, tapKind:1, tapMs:35,  tapByGrade:0}],
-    ['ポーン（余韻）',         {cueMode:0, tapKind:2, tapMs:35,  tapByGrade:0}],
-    ['長め 60ms',              {cueMode:0, tapMs:60}],
-    ['長め 100ms',             {cueMode:0, tapMs:100}],
-    ['当たり／かすり／外しで鳴り分ける', {cueMode:0, tapByGrade:1}],
+  ['押した瞬間の音', ['cueMode','tapKind','tapMs','tapByGrade'], [
+    ['素のピッ 35ms（いまの作り）', {cueMode:0, tapKind:0, tapMs:35,  tapByGrade:0}],
+    ['コッ 35ms',                   {cueMode:0, tapKind:1, tapMs:35,  tapByGrade:0}],
+    ['コッ 60ms',                   {cueMode:0, tapKind:1, tapMs:60,  tapByGrade:0}],
+    ['ポーン 60ms',                 {cueMode:0, tapKind:2, tapMs:60,  tapByGrade:0}],
+    ['ポーン 100ms',                {cueMode:0, tapKind:2, tapMs:100, tapByGrade:0}],
+    ['コッ 60ms・当たりかすり外しで鳴り分け', {cueMode:0, tapKind:1, tapMs:60, tapByGrade:1}],
   ]],
-  ['4. 押した瞬間の画面', [
+  ['押した瞬間の画面', ['symKind','symGrow','flashSec'], [
     ['白く光る（いまの作り）', {symKind:0, symGrow:4,  flashSec:0.12}],
     ['弾ける',                 {symKind:3, symGrow:4,  flashSec:0.12}],
-    ['大きくなる',             {symKind:1, symGrow:4,  flashSec:0.12}],
-    ['色が変わる',             {symKind:2, symGrow:4,  flashSec:0.12}],
-    ['もっと大きく',           {symGrow:10}],
-    ['長く残す',               {flashSec:0.25}],
+    ['大きくなる',             {symKind:1, symGrow:10, flashSec:0.12}],
+    ['色が変わる・長く残す',   {symKind:2, symGrow:4,  flashSec:0.25}],
   ]],
-  ['5. 窓の外で押したとき', [
+  ['窓の外で押したとき', ['outBack'], [
     ['判定線が光る', {outBack:0}],
     ['画面が沈む',   {outBack:1}],
     ['×を出す',      {outBack:2}],
     ['何も出さない', {outBack:3}],
   ]],
-  ['6. 合図の出し方（作りごと変わる。最後に）', [
+  ['合図の出し方', ['cueMode','bgmOn'], [
     ['押した瞬間に鳴らす（いまの作り）', {cueMode:0, bgmOn:1}],
     ['曲に重ねたトラックで出す',         {cueMode:1, bgmOn:1}],
   ]],
 ];
+
+/* --- 「どっち？」──────────────────────────────────────────────────────
+   待ちも演出も切って、長音と直後の符号だけを延々と繰り返す。
+   Cキー（か画面のボタン）で甲⇄乙がその場で入れ替わる。遊びながら切り替えて、
+   良いほうを押す。勝ったほうが残り、次の相手が出てくる。
+   一度に頭に置くのは二つだけ。並べて覚えておく必要が無い。
+   ------------------------------------------------------------------------ */
+const DRILL = {waitLo:0, waitHi:0.01, fxCatch:0.05, chartMode:2, fixedChart:'ー・ー・',
+               tight:1, countInBeats:2, bgmOn:0};
+const AB = {on:false, qi:0, champ:0, chal:1, side:0, picked:[]};
+const abBox = document.getElementById('ab');
+
+function abApply(){
+  const row = TRY[AB.qi];
+  const oi = AB.side===0 ? AB.champ : AB.chal;
+  Object.assign(T, row[2][oi][1]);
+  holdSoundStop(); bgmStop(); bgmStart();
+  buildKnobs(); abDraw();
+}
+function abStart(){
+  AB.on=true; AB.qi=0; AB.champ=0; AB.chal=1; AB.side=0; AB.picked=[];
+  Object.assign(T, DEF); Object.assign(T, DRILL);
+  abApply(); castRod();
+}
+function abPick(win){                                   // win: 0=甲 1=乙
+  const row = TRY[AB.qi];
+  AB.champ = win===0 ? AB.champ : AB.chal;
+  AB.chal++;
+  if (AB.chal >= row[2].length) abNext();
+  else { AB.side=0; abApply(); }
+}
+function abSkip(){ abNext(); }
+function abNext(){
+  const row = TRY[AB.qi];
+  AB.picked.push([row[0], row[2][AB.champ][0], row[2][AB.champ][1]]);
+  AB.qi++; AB.champ=0; AB.chal=1; AB.side=0;
+  if (AB.qi >= TRY.length){
+    AB.on=false;
+    // 選び終わったら、勝った組み合わせを全部当てた状態にして遊べるようにする
+    AB.picked.forEach(([,,set])=>Object.assign(T, set));
+    holdSoundStop(); bgmStop(); bgmStart(); buildKnobs();
+    abDraw(); return;
+  }
+  abApply();
+}
+function abToggle(){ if(!AB.on) return; AB.side = AB.side?0:1; abApply(); }
+
+function abDraw(){
+  abBox.innerHTML='';
+  const mk=(t,f,cls)=>{ const b=document.createElement('button'); b.textContent=t;
+    if(cls) b.className=cls; b.onclick=f; return b; };
+  if (!AB.on && !AB.picked.length){
+    abBox.appendChild(document.createElement('p')).className='hint';
+    abBox.lastChild.innerHTML =
+      '<b>待ちも演出も切って、長音と直後の符号だけを繰り返す。</b><br>'+
+      '遊びながら <b>Cキー</b> で甲⇄乙をその場で切り替えて、良いほうを押す。<br>'+
+      '一度に比べるのは二つだけ。6問・20回で終わる。';
+    abBox.appendChild(mk('はじめる', abStart));
+    return;
+  }
+  if (!AB.on){                                          // 終わり
+    const p=document.createElement('p'); p.className='hint';
+    p.innerHTML='<b>ぜんぶ終わり。</b>これをそのままチャットに貼る。';
+    abBox.appendChild(p);
+    const d=document.createElement('div'); d.className='done';
+    d.textContent = AB.picked.map(([q,n,set])=>
+      q+' → '+n+'\n    '+Object.entries(set).map(([k,v])=>k+'='+v).join(' ')).join('\n');
+    abBox.appendChild(d);
+    abBox.appendChild(mk('もう一度', abStart));
+    return;
+  }
+  const row=TRY[AB.qi];
+  const q=document.createElement('div'); q.className='q';
+  q.textContent=(AB.qi+1)+'／'+TRY.length+'　'+row[0];
+  abBox.appendChild(q);
+  const side=document.createElement('div'); side.className='side';
+  [['甲', AB.champ],['乙', AB.chal]].forEach(([nm,oi],i)=>{
+    const d=document.createElement('div'); if(i===AB.side) d.className='on';
+    d.textContent=nm+'　'+row[2][oi][0]; side.appendChild(d);
+  });
+  abBox.appendChild(side);
+  const h=document.createElement('div'); h.className='big';
+  h.textContent='Cキーで切り替え。良いほうを押す。';
+  abBox.appendChild(h);
+  abBox.appendChild(mk('甲がいい', ()=>abPick(0)));
+  abBox.appendChild(mk('乙がいい', ()=>abPick(1)));
+  abBox.appendChild(mk('切り替え（C）', abToggle));
+  abBox.appendChild(mk('この問いは飛ばす', abSkip));
+  abBox.appendChild(mk('やめる', ()=>{ AB.on=false; AB.picked=[]; Object.assign(T,DEF);
+    holdSoundStop(); bgmStop(); bgmStart(); buildKnobs(); abDraw(); castRod(); }));
+}
+window.addEventListener('keydown', e=>{ if(e.code==='KeyC'){ e.preventDefault(); abToggle(); } });
+
 const tryBox = document.getElementById('try');
 function buildTry(){
   tryBox.innerHTML = '';
@@ -804,7 +908,7 @@ function buildTry(){
     const d=document.createElement('div'); d.className='tg';
     const t=document.createElement('div'); t.className='t'; t.textContent=row[0]; d.appendChild(t);
     const bs=document.createElement('div'); bs.className='bs';
-    row[1].forEach(([name, set], bi)=>{
+    row[2].forEach(([name, set], bi)=>{
       const b=document.createElement('button'); b.textContent=name;
       b.onclick=()=>{
         Object.assign(T, set);
@@ -886,6 +990,12 @@ document.getElementById('bReset').onclick = ()=>{
   document.getElementById('tryNow').textContent = 'いま：既定（8/19版と同じ）';
 };
 
+document.getElementById('bTry').onclick = ()=>{
+  const w=document.getElementById('tryWrap');
+  const open = w.style.display==='none';
+  w.style.display = open ? '' : 'none';
+  document.getElementById('bTry').textContent = open ? 'ひとつずつ試す（畳む）' : 'ひとつずつ試す（畳んである）';
+};
 document.getElementById('bKnobs').onclick = ()=>{
   const k=document.getElementById('knobs');
   const open = k.style.display==='none';
@@ -894,6 +1004,7 @@ document.getElementById('bKnobs').onclick = ()=>{
 };
 
 buildTry();
+abDraw();
 buildKnobs();
 castRod();
 r.phase='idle';
