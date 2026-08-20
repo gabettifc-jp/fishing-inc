@@ -156,15 +156,21 @@ add(16, '入れ食いが効き始める餌の段数',
 /* 17. 旋律（11章） */
 const mel = await pg.evaluate(() => {
   const all = [...POOL, ...BOSS_CHART];
+  const keep = T.melMode; T.melMode = 0;                  // 「譜面の形」のときを見る
   const ms = all.map(c => melodyOf([...c]).join(''));
+  T.melMode = keep;
   const a = timeline([...'・ー・・ー・'], false), b = timeline([...'・ー・・ー・'], false);
   const gapSame = a.syms.map(s=>s.start.toFixed(2)).join() === b.syms.map(s=>s.start.toFixed(2)).join();
   const hz = [...new Set(all.flatMap(c=>melodyOf([...c])))].map(k=>Math.round(melHz(k)));
-  return {本数: all.length, 別々: new Set(ms).size,
+  return {本数: all.length, 別々: new Set(ms).size, いまの決め方: T.melMode,
           同じ譜面で同じ旋律: a.mel.join('')===b.mel.join(''), 間隔は毎回同じ: gapSame,
           いちばん低い音: Math.min(...hz), いちばん高い音: Math.max(...hz)};
 });
-add(17, '譜面ごとに別々の旋律になるか', `${mel.別々}／${mel.本数}本`, mel.別々===mel.本数);
+// 「全部ちがう旋律にする」は**目標にしない**（ばらけさせるほどまとまらない）。
+// 見るのは「同じ譜面なら同じ旋律か」と「決め方を切り替えられるか」だけ
+add(17, '旋律の決め方を切り替えられるか',
+    `いま ${Math.round(mel.いまの決め方)===1?'昇る':'譜面の形'}／形のとき ${mel.別々}／${mel.本数}本`,
+    mel.別々 > 1);
 add(18, '同じ譜面はいつも同じ旋律か（間隔は毎回ちがうのに）',
     `旋律 ${mel.同じ譜面で同じ旋律?'同じ':'ちがう'}／間隔 ${mel.間隔は毎回同じ?'同じ':'ちがう'}`,
     mel.同じ譜面で同じ旋律 && !mel.間隔は毎回同じ);
@@ -177,12 +183,34 @@ const snd = await pg.evaluate(() => {
   r.tl = timeline([...'・ー・'], false); r.t = r.tl.syms[1].start;
   press(true); const hold = !!melVoice; press(false); const after = !!melVoice;
   r.res=[]; r.aim=-1; r.t = 0.1; press(true); const outside = !!melVoice; press(false);
-  return {長音で伸びる: hold, 離すと止まる: !after, 窓の外で鳴らない: !outside};
+  return {長音で伸びる: hold, 離すと止まる: !after, 窓の外で鳴らない: !outside,
+          つまみ: !!T.melHold};
 });
-add(20, '長音は押しているあいだ伸びるか', snd.長音で伸びる?'伸びる':'伸びない', snd.長音で伸びる);
+add(20, '長音の伸びが、つまみのとおりか',
+    `つまみ ${snd.つまみ?'入':'切'}／実際 ${snd.長音で伸びる?'伸びる':'伸びない'}`,
+    snd.つまみ === snd.長音で伸びる);
 add(21, '離すと止まるか', snd.離すと止まる?'止まる':'止まらない', snd.離すと止まる);
 add(22, '窓の外では鳴らないか（旋律に穴があく）',
     snd.窓の外で鳴らない?'鳴らない':'鳴る', snd.窓の外で鳴らない);
+
+/* 23. 拍が鳴るか（3章「カウントインの4拍だけ、一拍ごとに音を鳴らす」） */
+const tick = await pg.evaluate(() => {
+  const hits = []; const real = beep; window.beep = hz => hits.push(Math.round(hz));
+  scr='A'; syncRods(); const r = rods[0];
+  r.phase='play'; r.t=0; r.countIn=-1; r.tl=timeline([...'・ー・'],false); r.res=[];
+  const keep = T.beatTick; T.beatTick = 0;
+  for (let k=0;k<20;k++){ r.t = k*beatSec()+0.01; update(0.016); }
+  const only = hits.slice();
+  hits.length=0; T.beatTick=1; r.t=0; r.countIn=-1;
+  for (let k=0;k<20;k++){ r.t = k*beatSec()+0.01; update(0.016); }
+  const all = hits.slice();
+  T.beatTick = keep; window.beep = real;
+  return {カウントイン: only.length, 刻むとき: all.length, 音: only};
+});
+add(23, 'カウントインの4拍が鳴るか', `${tick.カウントイン}回（${tick.音.join('/')}Hz）`,
+    tick.カウントイン === 4);
+add(24, '拍を刻む切替が効くか', `切 ${tick.カウントイン}回／入 ${tick.刻むとき}回`,
+    tick.刻むとき > tick.カウントイン);
 
 /* --- 出力 --- */
 const w = Math.max(...rows.map(r=>r.what.length));
