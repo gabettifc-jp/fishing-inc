@@ -198,16 +198,19 @@ const tick = await pg.evaluate(() => {
   const hits = []; const real = beep; window.beep = hz => hits.push(Math.round(hz));
   scr='A'; syncRods(); const r = rods[0];
   r.phase='play'; r.t=0; r.countIn=-1; r.tl=timeline('・ー・',false); r.res=[];
+  // **既定は「鳴らさない」**（第30版）。ここで見るのは仕組みが生きているかなので、
+  // つまみを入れてから測る。既定そのものは別の行（27）で見る
+  const keepSnd = T.countInSound; T.countInSound = 1;
   const keep = T.beatTick; T.beatTick = 0;
   for (let k=0;k<20;k++){ r.t = k*beatSec()+0.01; update(0.016); }
   const only = hits.slice();
   hits.length=0; T.beatTick=1; r.t=0; r.countIn=-1;
   for (let k=0;k<20;k++){ r.t = k*beatSec()+0.01; update(0.016); }
   const all = hits.slice();
-  T.beatTick = keep; window.beep = real;
+  T.beatTick = keep; T.countInSound = keepSnd; window.beep = real;
   return {カウントイン: only.length, 刻むとき: all.length, 音: only};
 });
-add(23, 'カウントインの4拍が鳴るか', `${tick.カウントイン}回（${tick.音.join('/')}Hz）`,
+add(23, 'カウントインの音を入れれば4拍鳴るか', `${tick.カウントイン}回（${tick.音.join('/')}Hz）`,
     tick.カウントイン === 4);
 add(24, '拍を刻む切替が効くか', `切 ${tick.カウントイン}回／入 ${tick.刻むとき}回`,
     tick.刻むとき > tick.カウントイン);
@@ -235,6 +238,29 @@ const cast = await pg.evaluate(async () => {
 add(25, '投げて魚をあげるところまで通るか',
     cast.エラー.length ? cast.エラー[0] : `${cast.上がった}／${cast.投げた回数}回`,
     cast.エラー.length===0 && cast.上がった > 0);
+
+/* 26. 押す位置の輪（9章）と、カウントインの音（既定は切） */
+const ring = await pg.evaluate(() => {
+  scr='A'; syncRods(); const r = rods[0];
+  r.phase='play'; r.tl = timeline('・ー・',false); r.res=[]; r.countIn=-1;
+  const sy = r.tl.syms[1], ap = T.apBeats*beatSec();
+  const at = back => { r.t = sy.start - back;
+    const u = Math.max(0, back/ap); return +(4 + (T.apStart-1)*4*u).toFixed(1); };
+  const far = at(ap), mid = at(ap/2), near = at(0);
+  // カウントインの音
+  const hits=[]; const real=beep; window.beep=hz=>hits.push(hz);
+  r.t=0; r.countIn=-1;
+  for (let k=0;k<6;k++){ r.t=k*beatSec()+0.01; update(0.016); }
+  window.beep=real;
+  return {輪:{出はじめ:far, 中ほど:mid, ちょうど:near}, 符号の半径:4,
+          カウントインの音:hits.length, つまみ:T.countInSound};
+});
+add(26, '輪が符号にぴったりまで縮むか',
+    `${ring.輪.出はじめ} → ${ring.輪.中ほど} → ${ring.輪.ちょうど}（符号の半径 ${ring.符号の半径}）`,
+    ring.輪.ちょうど === ring.符号の半径 && ring.輪.出はじめ > ring.符号の半径*3);
+add(27, 'カウントインの音が既定で鳴らないか',
+    `つまみ ${ring.つまみ}／鳴った回数 ${ring.カウントインの音}`,
+    ring.つまみ === 0 && ring.カウントインの音 === 0);
 
 /* --- 出力 --- */
 const w = Math.max(...rows.map(r=>r.what.length));
