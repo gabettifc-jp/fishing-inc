@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>手触りの見本：音ゲー（返し）</title>
+<style>
+  :root{ --ink:#e8eef2; --dim:#8fa3b0; --line:#2c3b45; --bg:#0a0f13; --panel:#111a20; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",sans-serif;
+    font-size:13px;line-height:1.6}
+  #wrap{display:flex;gap:0;align-items:flex-start;min-height:100vh}
+  #left{flex:1 1 auto;padding:12px;min-width:0}
+  #side{width:330px;flex:0 0 330px;background:var(--panel);border-left:1px solid var(--line);
+    padding:10px;max-height:100vh;overflow:auto;position:sticky;top:0}
+  canvas{display:block;width:100%;max-width:720px;image-rendering:pixelated;
+    background:#000;border:1px solid var(--line)}
+  h1{font-size:14px;margin:0 0 8px}
+  h2{font-size:12px;margin:14px 0 4px;color:#9fd6ff;border-bottom:1px solid var(--line);padding-bottom:2px}
+  .k{display:flex;align-items:center;gap:6px;margin:3px 0}
+  .k label{flex:1 1 auto;font-size:12px;color:var(--ink)}
+  .k .u{color:var(--dim);font-size:11px}
+  input[type=number],input[type=text],select{background:#0a1116;color:var(--ink);
+    border:1px solid var(--line);border-radius:3px;padding:2px 4px;font:inherit;font-size:12px}
+  input[type=number]{width:78px}
+  input[type=text]{width:150px}
+  select{max-width:170px}
+  button{font:inherit;font-size:12px;padding:3px 8px;background:#16242c;color:var(--ink);
+    border:1px solid var(--line);border-radius:3px;cursor:pointer}
+  button:hover{background:#1e333e}
+  .hint{color:var(--dim);font-size:11px;margin:4px 0}
+  .rec{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
+    background:#0a1116;border:1px solid var(--line);border-radius:3px;padding:6px;
+    max-height:190px;overflow:auto;white-space:pre}
+  .row{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+  .warn{color:#e0a06b;font-size:11px}
+  .tg{margin:8px 0 10px}
+  .tg .t{font-size:12px;color:#9fd6ff;margin-bottom:3px}
+  .tg .bs{display:flex;gap:4px;flex-wrap:wrap}
+  .tg button{font-size:11px;padding:3px 7px}
+  .tg button.on{background:#2b4a5c;border-color:#5b8fa8;color:#fff}
+  #ab .q{font-size:13px;color:#9fd6ff;margin:2px 0 6px}
+  #ab .side{display:flex;gap:6px;margin:4px 0}
+  #ab .side div{flex:1 1 0;padding:5px 6px;border:1px solid var(--line);border-radius:3px;
+    background:#0d151b;font-size:12px}
+  #ab .side div.on{border-color:#9fd6ff;background:#16303c;color:#fff}
+  #ab .big{font-size:12px;color:var(--dim);margin:6px 0 2px}
+  #ab button{margin:2px 3px 2px 0}
+  #ab .done{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;
+    background:#0a1116;border:1px solid var(--line);border-radius:3px;padding:6px;white-space:pre}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="left">
+    <h1>手触りの見本：音ゲー — 返しを選ぶ（2026-08-20）</h1>
+    <canvas id="cv" width="720" height="405"></canvas>
+    <p class="hint">
+      押す＝スペース／Z／画面のクリック。単押しと押しっぱなしの二種類。<br>
+      待っているあいだに押すと投げ直す。**この見本は捨てる。**本編には持ち込まない。
+    </p>
+    <div class="row">
+      <button id="bOmen">次を超大物にする（予兆つき）</button>
+      <button id="bReset">つまみを既定に戻す</button>
+    </div>
+    <p class="hint" id="chartNow"></p>
+  </div>
+  <div id="side">
+    <h2>どっち？</h2>
+    <div id="ab"></div>
+    <div class="row"><button id="bTry">ひとつずつ試す（畳んである）</button></div>
+    <div id="tryWrap" style="display:none">
+      <p class="hint">押すと、その組み合わせに切り替わる。比べるのは同じ行の中だけ。</p>
+      <div id="try"></div>
+      <p class="hint" id="tryNow">いま：既定（8/19版と同じ）</p>
+    </div>
+    <h2>直近10回の判定のずれ</h2>
+    <div class="rec" id="rec">まだ無い</div>
+    <div class="row"><button id="bKnobs">つまみを全部出す</button></div>
+    <div id="knobs" style="display:none"></div>
+  </div>
+</div>
+<script>
+/* ============================================================================
+   手触りの見本：音ゲー（fishing-inc / 2026-08-20）
+
+   8/19版に「押した気がしない、押せてるかもわからない。長音を押している
+   という感じもしない」と言われたので、**返しを入／切ではなく種類と値にした。**
+   8/19版は builds/ に残してある（上書きしない）。
+
+   一回の釣りの内側だけを切り出したもの。
+   金・道具・パーク・釣り場の解放・転生・図鑑・保存・進行は入っていない。
+
+   判定の問いは一つだけ。「イメージに合っているか」。
+
+   **この見本は捨てる。**持ち出すのは、つまみの値と、
+   ジャンルシート（gamedev/templates/sheets/genre/rhythm.md）に書き戻す答えだけ。
+
+   数値はすべて下の TUNE に置く。コードに直接書かない。
+   既定値は現行実装（src/fishing-inc.html 第20版）と同じ。
+   ========================================================================== */
+
+/* --- つまみ ---------------------------------------------------------------
+   [id, 分類, 表示名, 既定値, 型]
+   型 'n'=数値 / 'b'=入切 / 's'=選ぶ（選択肢は CHOICE）/ 't'=文字
+   分類の見出しは、ジャンルシートの節の名前をそのまま使う。
+   ------------------------------------------------------------------------ */
+const TUNE = [
+  // 1. 判定
+  ['winHit',      '1. 判定', '判定の幅・当たり（ミリ秒）',        60,   'n'],
+  ['winGraze',    '1. 判定', '判定の幅・かすり（ミリ秒）',        140,  'n'],
+  ['earlyLate',   '1. 判定', '早い／遅いを表示する',              1,    'b'],
+  ['markOn',      '1. 判定', '判定の目印（符号の位置に線）を出す', 1,    'b'],
+  ['wordOn',      '1. 判定', '判定の言葉（当たり／かすり／外し）を出す', 1, 'b'],
+
+  // 2. 外れた入力の扱い
+  ['outMode',     '2. 外れた入力', '窓の外で押したとき',          0,    's'],
+  ['passMiss',    '2. 外れた入力', '押さずに通り過ぎたら外しにする', 1,  'b'],
+  ['minGapMs',    '2. 外れた入力', '符号どうしの最小間隔（ミリ秒。0で無し）', 0, 'n'],
+
+  // 3. 長押し
+  ['judgeAt',     '3. 長押し', '判定を確定する時点',              0,    's'],
+  ['holdBar',     '3. 長押し', '保持中の帯',                      0,    's'],
+  ['holdSound',   '3. 長押し', '保持中の音',                      0,    's'],
+  ['holdFreq',    '3. 長押し', '同・高さ（Hz。予兆と混ざらぬよう高く）', 880, 'n'],
+  ['holdVol',     '3. 長押し', '同・音量',                        0.10, 'n'],
+  ['holdRepMs',   '3. 長押し', '同・繰り返しの間隔（ミリ秒）',    120,  'n'],
+  ['holdOkCue',   '3. 長押し', '保持が合格に届いた瞬間の合図',    0,    's'],
+  ['holdOkFreq',  '3. 長押し', '同・高さ（Hz）',                  1560, 'n'],
+  ['holdUnit',    '3. 長押し', '離す許容の指定',                  1,    's'],
+  ['holdKeep',    '3. 長押し', '同・割合（長音の長さに対して）',  0.8,  'n'],
+  ['holdKeepMs',  '3. 長押し', '同・ミリ秒（早く離してよい量）',  200,  'n'],
+  ['relHint',     '3. 長押し', '離す位置の目印',                  0,    's'],
+  ['holdBarLen',  '3. 長押し', '帯を描く長さ',                    0,    's'],
+  ['holdBarMul',  '3. 長押し', '同・倍率で決めるときの倍率',      0.8,  'n'],
+  ['tight',       '3. 長押し', '符号の間隔を詰める（長音の直後に符号）', 0, 'b'],
+
+  // 4. 返し（音）
+  ['tapSound',    '4. 返し（音）', '押した瞬間に音を返す',        1,    'b'],
+  ['tapKind',     '4. 返し（音）', '打鍵音の種類',                0,    's'],
+  ['tapFreq',     '4. 返し（音）', '同・高さ（Hz）',              1200, 'n'],
+  ['tapMs',       '4. 返し（音）', '同・長さ（ミリ秒）',          35,   'n'],
+  ['tapVol',      '4. 返し（音）', '同・音量',                    0.22, 'n'],
+  ['tapByGrade',  '4. 返し（音）', '当たり・かすり・外しで鳴り分ける', 0, 's'],
+  ['tapGrazeMul', '4. 返し（音）', '同・かすりの高さ倍率',        0.75, 'n'],
+  ['tapMissMul',  '4. 返し（音）', '同・外しの高さ倍率',          0.5,  'n'],
+  ['cueMode',     '4. 返し（音）', '合図の出し方',                0,    's'],
+  ['cueVol',      '4. 返し（音）', '同・合図トラックの音量',      0.14, 'n'],
+  ['cueDuckMs',   '4. 返し（音）', '同・外したとき消える長さ（ミリ秒）', 350, 'n'],
+
+  // 4. 返し（画面）
+  ['symFlash',    '4. 返し（画面）', '押した符号自身が反応する',  1,    'b'],
+  ['symKind',     '4. 返し（画面）', '同・反応のしかた',          0,    's'],
+  ['symGrow',     '4. 返し（画面）', '同・反応の大きさ（画素）',  4,    'n'],
+  ['outBack',     '4. 返し（画面）', '窓の外で押したときの返し',  0,    's'],
+  ['failBack',    '4. 返し（画面）', '失敗したときも返す（文字）', 1,   'b'],
+
+  // 音（全体）
+  ['bgmOn',       '音（全体）', '曲を鳴らす（打鍵音と混ざるか）', 0,    'b'],
+  ['sndOn',       '音（全体）', '音を鳴らす（全体）',             1,    'b'],
+  ['sndVol',      '音（全体）', '音量',                           0.25, 'n'],
+
+  // 5. ずれ（較正）
+  ['offsetMs',    '5. ずれ', '入力のずれ（ミリ秒。＋で遅らせて扱う）', 0, 'n'],
+
+  // 6. 譜面と曲
+  ['beat',        '6. 譜面', '一拍の長さ（秒）',                  0.25, 'n'],
+  ['dotBeats',    '6. 譜面', '短音の長さ（拍）',                  1,    'n'],
+  ['dashBeats',   '6. 譜面', '長音の長さ（拍）',                  2,    'n'],
+  ['maxSyms',     '6. 譜面', '符号数の上限',                      8,    'n'],
+  ['countInBeats','6. 譜面', 'カウントイン（拍）',                4,    'n'],
+  ['countInSound','6. 譜面', 'カウントインの音を鳴らす',          1,    'b'],
+  ['chartMode',   '6. 譜面', '譜面の選び方',                      0,    's'],
+  ['symCount',    '6. 譜面', '符号数（指定するとき。2〜8）',      4,    'n'],
+  ['place',       '6. 譜面', '釣り場（1〜8。傾斜と深場の倍率）',  1,    'n'],
+  ['grade',       '6. 譜面', '格（0雑魚〜4超大物。釣り場から引くとき）', 0, 'n'],
+  ['fixedChart',  '6. 譜面', '固定の譜面（・とー）',              'ー・', 't'],
+  ['deepOn',      '6. 譜面', '釣り場の深さを判定の幅に効かせる',  1,    'b'],
+
+  // 待ち（切り出した範囲に含む）
+  ['waitLo',      '待ち', '待ち時間の下限（秒）',                 2.0,  'n'],
+  ['waitHi',      '待ち', '待ち時間の上限（秒）',                 8.0,  'n'],
+  ['waitSkew',    '待ち', '分布の寄せ方',                         2.0,  'n'],
+  ['omenWaitLo',  '待ち', '予兆から掛かるまで・下限（秒）',       6,    'n'],
+  ['omenWaitHi',  '待ち', '予兆から掛かるまで・上限（秒）',       8,    'n'],
+
+  // 釣果（音ゲー側の返しに要るぶんだけ）
+  ['missRatio0',  '釣果', '「逃す」になる外しの割合',             0.5,  'n'],
+  ['slip2',       '釣果', '完璧で許す取りこぼし・2符号',          0,    'n'],
+  ['slip3',       '釣果', '同・3符号',                            0,    'n'],
+  ['slip4',       '釣果', '同・4符号',                            1,    'n'],
+  ['slip5',       '釣果', '同・5符号',                            1,    'n'],
+  ['slip6',       '釣果', '同・6符号',                            1,    'n'],
+  ['slip7',       '釣果', '同・7符号',                            2,    'n'],
+  ['slip8',       '釣果', '同・8符号',                            2,    'n'],
+  ['fxCatch',     '釣果', '上がった演出（秒。手は止めない）',     0.6,  'n'],
+
+  // 画面
+  ['beatW',       '画面', '一拍の幅',                             27,   'n'],
+  ['bandH',       '画面', '譜面の帯の高さ',                       80,   'n'],
+  ['bandPop',     '画面', '帯がポップする速さ（秒）',             0.2,  'n'],
+  ['floatSize',   '画面', '浮きの大きさ',                         8,    'n'],
+  ['flashSec',    '画面', '符号が反応する長さ（秒）',             0.12, 'n'],
+];
+
+// 選ぶ型の選択肢。左が既定（＝「入っている」側）
+const CHOICE = {
+  outMode:   ['符号を消さない（窓の外は空振り）', 'いまの作り（最寄りに割り当てる）'],
+  relHint:   ['符号の終わりに出す（いまの作り）', '離してよい位置に出す', '出さない'],
+  holdBarLen:['符号の長さいっぱい（いまの作り）', '離してよい位置まで（見た目＝離すタイミング）', '倍率で決める'],
+  holdBar:   ['いまの作り（長さのある帯。変わらない）', '押している間、残りが減っていく', '点にする（長さを描かない）'],
+  holdSound: ['無し（いまの作り）', '持続音', '繰り返し音'],
+  holdOkCue: ['無し（いまの作り）', '音', '光る', '音と光る'],
+  tapKind:   ['素のピッ（いまの作り）', '立ち上がりの速い打（コッ）', '余韻のある音（ポーン）'],
+  tapByGrade:['一種類（いまの作り）', '当たり・かすり・外しで鳴り分ける'],
+  cueMode:   ['押した瞬間に鳴らす（いまの作り）', '曲に重ねたトラックの音量で出す'],
+  symKind:   ['白く光る（いまの作り）', '大きくなる', '色が変わる', '弾ける'],
+  outBack:   ['判定線が光る', '画面がわずかに沈む', '空振りの印を出す', '無し'],
+  judgeAt:   ['押し始めで確定する', '離した瞬間に確定する（いまの作り）'],
+  holdUnit:  ['割合で見る（いまの作り）', 'ミリ秒で見る'],
+  chartMode: ['符号数を指定して引く', '釣り場と格から引く', '固定の譜面'],
+};
+
+const DEF = {}; TUNE.forEach(([id,,,v])=>DEF[id]=v);
+const T = Object.assign({}, DEF);
+
+/* --- 仕様書から持ってきた表（3章・6章・5章・10章） ---------------------- */
+const GRADES = ['雑魚','並','良型','大物','超大物'];
+// 3章 釣り場ごとの符号数の傾斜
+const SYM_COUNT = [
+  [2,3,4,5,6],[2,3,4,5,6],[2,3,4,5,7],[3,4,5,6,7],
+  [3,4,5,6,7],[3,4,5,6,8],[4,5,6,7,8],[4,5,6,7,8],
+];
+// 6章 譜面のプール（雑魚〜大物 26本）
+const POOL = [
+  '・・','・ー','ー・','ーー',
+  '・・ー','・ー・','ー・・','・ーー','ー・ー','ーー・',
+  '・・ー・','・ー・ー','ー・ー・','ー・・ー','・ーー・','ーー・・',
+  '・ー・ー・','ー・・ー・','・・ーー・','ー・ー・ーー','・・ー・・ー','ーー・・ーー',
+  '・ー・・ー・ー','ー・ー・・ー・','・・ー・ー・ー','ー・・ーー・・',
+];
+// 6章 主用8本（釣り場ごとに固定）
+const BOSS_CHART = [
+  '・ー・ー・ー','ー・・ー・ー','・・ーー・・ー','ー・ー・ー・ー',
+  '・ー・ー・ー・','ー・ー・・ー・ー','・・ー・ーー・・','ーー・ー・ーーー',
+];
+// 5章 魚（格ごとの代表。上がったときの演出に出す。値段は出さない）
+const FISH = [
+  ['メダカ','ドジョウ','フナ','ナマズ','ハクレン'],
+  ['ウグイ','オイカワ','コイ','ライギョ','スッポン'],
+  ['ワカサギ','ヒメマス','ニジマス','ブラックバス','イトウ'],
+  ['イワシ','アジ','サバ','カサゴ','タコ'],
+  ['カツオ','シイラ','ブリ','クロマグロ','ホホジロザメ'],
+  ['ホッキョクダラ','コオリカマス','ギンダラ','アイスフィッシュ','ニシオンデンザメ'],
+  ['シロウオ','ブラインドフィッシュ','ホラアナドジョウ','アラバマケイブフィッシュ','ヨミノヌシ'],
+  ['チョウチンアンコウ','ラブカ','リュウグウノツカイ','ダイオウイカ','クラーケン'],
+];
+// 10章7 深場が要求する精度（釣り場1〜8）
+const DEEP = [1.0,1.0,0.7,0.7,0.5,0.5,0.35,0.35];
+// 8章の色
+const COL = {hit:'#7fd6a0', graze:'#e8c05a', miss:'#e0736b', idle:'#e8eef2'};
+
+/* --- 音（11章。報酬は高い音／低くて持続する音は予兆だけ） ---------------- */
+let AC=null, master=null, omenNode=null, bgmTimer=null, bgmStep=0;
+function audio(){
+  if (!AC){ AC = new (window.AudioContext||window.webkitAudioContext)();
+    master = AC.createGain(); master.connect(AC.destination); }
+  if (AC.state==='suspended') AC.resume();
+  master.gain.value = T.sndVol;
+  return AC;
+}
+function beep(freq, dur, type, vol){
+  if (!T.sndOn) return;
+  const ac = audio();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type||'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(vol==null?0.6:vol, ac.currentTime+0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+dur);
+  o.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime+dur+0.02);
+}
+/* 立ち上がりの速い打（コッ）。短い雑音を帯域で削る */
+let NOISE=null;
+function noiseBuf(ac){
+  if (NOISE) return NOISE;
+  const n = ac.sampleRate*0.25, b = ac.createBuffer(1,n,ac.sampleRate), d=b.getChannelData(0);
+  for (let i=0;i<n;i++) d[i] = Math.random()*2-1;
+  NOISE=b; return b;
+}
+function knock(freq, dur, vol){
+  if (!T.sndOn) return;
+  const ac=audio();
+  const src=ac.createBufferSource(); src.buffer=noiseBuf(ac);
+  const bp=ac.createBiquadFilter(); bp.type='bandpass'; bp.frequency.value=freq; bp.Q.value=6;
+  const g=ac.createGain();
+  g.gain.setValueAtTime(vol, ac.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+dur);
+  src.connect(bp); bp.connect(g); g.connect(master);
+  src.start(); src.stop(ac.currentTime+dur+0.02);
+}
+/* 打鍵音。種類・高さ・長さ・音量はつまみ。判定は一切変えない */
+function tapPlay(kindGrade){
+  if (!T.tapSound) return;
+  if (T.cueMode===1) return;              // 合図をトラックで出すときは、押した音は鳴らさない
+  let f = T.tapFreq;
+  if (T.tapByGrade===1){
+    if (kindGrade==='graze') f *= T.tapGrazeMul;
+    else if (kindGrade==='miss') f *= T.tapMissMul;
+  }
+  const dur = Math.max(0.005, T.tapMs/1000);
+  if (T.tapKind===1)      knock(f, dur*2, T.tapVol);
+  else if (T.tapKind===2) beep(f, dur*6, 'sine', T.tapVol);
+  else                    beep(f, dur, 'square', T.tapVol);
+}
+
+/* 保持中の音。CLAUDE.md「低くて持続する音は予兆にだけ」なので高い音を既定にする */
+let holdNode=null, holdTimer=null;
+function holdSoundStart(){
+  holdSoundStop();
+  if (!T.sndOn || T.holdSound===0) return;
+  if (T.holdSound===1){
+    const ac=audio(); const oo=ac.createOscillator(), gg=ac.createGain();
+    oo.type='triangle'; oo.frequency.value=T.holdFreq; gg.gain.value=T.holdVol;
+    oo.connect(gg); gg.connect(master); oo.start(); holdNode={o:oo,g:gg};
+  } else {
+    holdTimer = setInterval(()=>beep(T.holdFreq, 0.03, 'triangle', T.holdVol),
+                            Math.max(30, T.holdRepMs));
+  }
+}
+function holdSoundStop(){
+  if (holdNode){ holdNode.o.stop(); holdNode=null; }
+  if (holdTimer){ clearInterval(holdTimer); holdTimer=null; }
+}
+
+/* 合図を曲に重ねたトラックの音量で出す。符号の時刻ちょうどに鳴るので、常に曲と同期する */
+function cueNote(on){
+  if (!T.sndOn || T.cueMode!==1) return;
+  if (on) beep(T.tapFreq, 0.09, 'triangle', T.cueVol);
+}
+
+function omenSound(on){
+  if (!T.sndOn) on=false;
+  if (on && !omenNode){
+    const ac=audio(); const o=ac.createOscillator(), g=ac.createGain();
+    o.type='sine'; o.frequency.value=70; g.gain.value=0.25;
+    o.connect(g); g.connect(master); o.start(); omenNode={o,g};
+  } else if(!on && omenNode){ omenNode.o.stop(); omenNode=null; }
+}
+const BGM_SCALE=[0,2,4,7,9];
+function bgmStart(){
+  bgmStop();
+  if (!T.bgmOn || !T.sndOn) return;
+  bgmTimer = setInterval(()=>{
+    if (!T.bgmOn || !T.sndOn) return;
+    const n = BGM_SCALE[(bgmStep*3)%BGM_SCALE.length] + 12*((bgmStep>>2)%2);
+    beep(110*Math.pow(2,n/12), 0.28, 'triangle', 0.10);
+    bgmStep++;
+  }, 420);
+}
+function bgmStop(){ if(bgmTimer){ clearInterval(bgmTimer); bgmTimer=null; } }
+
+/* --- 譜面 ---------------------------------------------------------------- */
+function frameBeats(){ return T.maxSyms * T.dashBeats; }
+function bandSec(){ return T.beat * (T.countInBeats + frameBeats()); }
+function place0(){ return Math.max(0, Math.min(7, Math.round(T.place)-1)); }
+
+function pickChart(){
+  if (T.chartMode===2){                                  // 固定
+    const c = String(T.fixedChart||'').replace(/[^・ー]/g,'');
+    return c.length ? c.slice(0, T.maxSyms) : 'ー・';
+  }
+  if (T.chartMode===1){                                  // 釣り場と格から
+    const g = Math.max(0, Math.min(4, Math.round(T.grade)));
+    if (g===4) return BOSS_CHART[place0()];
+    const need = SYM_COUNT[place0()][g];
+    const cand = POOL.filter(c=>c.length===need);
+    return cand.length ? cand[(Math.random()*cand.length)|0] : POOL[0];
+  }
+  const need = Math.max(2, Math.min(T.maxSyms, Math.round(T.symCount)));
+  const cand = POOL.filter(c=>c.length===need);
+  if (cand.length) return cand[(Math.random()*cand.length)|0];
+  const b = BOSS_CHART.filter(c=>c.length===need);       // 8符号はプールに無い
+  return b.length ? b[(Math.random()*b.length)|0] : POOL[0];
+}
+
+// 譜面 -> 各符号の {start, dur, long}（秒）。枠の格子に置き、余り拍を間隔に配る
+function timeline(chart, fixed){
+  const b = T.beat, n = chart.length;
+  const vals = [...chart].map(ch => ch==='ー' ? T.dashBeats : T.dotBeats);
+  const used = vals.reduce((a,x)=>a+x, 0);
+  let slack = Math.max(0, frameBeats() - used);
+  const slots = n + 1;
+  const gaps = new Array(slots).fill(0);
+  const minBeats = Math.ceil((T.minGapMs/1000) / Math.max(0.0001,b));
+  let gapShort = false;   // 最小間隔が枠に収まらなかった
+  if (T.tight){
+    gaps[slots-1] = slack; slack = 0;                    // 全部を末尾へ寄せる＝間隔ゼロ
+  } else if (fixed){
+    const q = Math.floor(slack/slots), r = slack % slots;
+    for (let i=0;i<slots;i++) gaps[i] = q + (i<r ? 1 : 0);
+  } else {
+    if (minBeats > 0){                                   // 内側の間隔に最低ぶんを先に配る
+      const need = minBeats * Math.max(0, n-1);
+      if (need <= slack){ for (let i=1;i<slots-1;i++){ gaps[i]=minBeats; slack-=minBeats; } }
+      else gapShort = true;
+    }
+    for (let k=0;k<slack;k++) gaps[(Math.random()*slots)|0]++;
+  }
+  const out=[]; let t = b*(T.countInBeats + gaps[0]);
+  for (let i=0;i<n;i++){
+    out.push({start:t, dur:b*vals[i], long: chart[i]==='ー', ch: chart[i], flash:-9});
+    t += b*vals[i] + b*gaps[i+1];
+  }
+  return {syms:out, total: bandSec(), gapShort};
+}
+function slipAllow(n){
+  return [0,0,T.slip2,T.slip3,T.slip4,T.slip5,T.slip6,T.slip7,T.slip8][Math.min(8,n)] || 0;
+}
+// 判定の幅（ミリ秒）。基準 × 深場倍率。道具は無いのでリールの段数は掛からない
+function windows(){
+  const d = T.deepOn ? DEEP[place0()] : 1;
+  const hit = T.winHit*d, grz = T.winGraze*d;
+  return {hit, graze: Math.max(grz, hit)};
+}
+// 離してよい位置（符号の頭から何秒か）。holdOk の裏返しで、同じつまみから引く
+function releaseAt(sym){
+  const v = T.holdUnit===1 ? sym.dur - T.holdKeepMs/1000 : sym.dur * T.holdKeep;
+  return Math.max(0, Math.min(sym.dur, v));
+}
+// 長音を保持できたか
+function holdOk(sym, held){
+  return T.holdUnit===1 ? (held >= sym.dur - T.holdKeepMs/1000)
+                        : (held >= sym.dur * T.holdKeep);
+}
+
+/* --- 状態 ---------------------------------------------------------------- */
+const r = {phase:'idle', t:0, wait:0, chart:'', tl:null, res:[], extra:0,
+           holding:false, pressT:-1, aim:-1, omen:false, bandT0:null, ci:-1,
+           result:null, grade:0, fxUntil:0, msg:'', msgUntil:0, msgCol:'#e8eef2',
+           outAt:-9, holdOkFired:false, holdOkAt:-9, cueFired:[]};
+let nextOmen = false;
+const recent = [];                                       // 直近の押し {dt, i}
+
+function castRod(){
+  holdSoundStop();
+  r.phase='wait'; r.t=0; r.res=[]; r.extra=0; r.holding=false; r.pressT=-1;
+  r.cueFired=[]; r.holdOkFired=false; r.holdOkAt=-9; r.outAt=-9;
+  r.aim=-1; r.ci=-1; r.bandT0=null; r.result=null; r.msg='';
+  r.omen = nextOmen; nextOmen = false;
+  if (r.omen){
+    r.wait = T.omenWaitLo + Math.random()*(T.omenWaitHi-T.omenWaitLo);
+    r.chart = BOSS_CHART[place0()];
+    r.grade = 4;
+    omenSound(true);
+  } else {
+    const lo=T.waitLo, hi=Math.max(T.waitLo,T.waitHi);
+    r.wait = lo + (hi-lo)*Math.pow(Math.random(), Math.max(0.0001,T.waitSkew));
+    r.chart = pickChart();
+    r.grade = (T.chartMode===1) ? Math.max(0,Math.min(4,Math.round(T.grade)))
+                                : Math.min(4, Math.max(0, r.chart.length-2));
+  }
+  r.tl = timeline(r.chart, r.omen);
+  showChart();
+}
+function startChart(){
+  r.phase='play'; r.t=0; r.res=[]; r.extra=0; r.ci=-1; r.bandT0=null; r.aim=-1;
+  r.cueFired=[];
+  omenSound(false);
+}
+function say(m, col){ r.msg=m; r.msgCol=col||'#e8eef2'; r.msgUntil = r.tNow + 0.8; }
+
+function judgeSymbol(i, dtSec, kindOk){
+  const w = windows(), a = Math.abs(dtSec)*1000;
+  r.res[i] = (a<=w.hit && kindOk) ? 'hit' : (a<=w.graze && kindOk) ? 'graze' : 'miss';
+  return r.res[i];
+}
+function finishChart(){
+  const n = r.tl.syms.length;
+  for (let i=0;i<n;i++) if (!r.res[i]) r.res[i] = T.passMiss ? 'miss' : 'skip';
+  const counted = r.res.filter(x=>x!=='skip').length + (r.extra||0);
+  const mis  = r.res.filter(x=>x==='miss').length + (r.extra||0);
+  const slip = r.res.filter(x=>x!=='hit' && x!=='skip').length + (r.extra||0);
+  let result;
+  if (counted>0 && mis/counted > T.missRatio0) result='miss';
+  else if (slip <= slipAllow(n))               result='perfect';
+  else                                         result='soso';
+  holdSoundStop();
+  r.result = result; r.phase='caught'; r.t=0; r.fxUntil = r.tNow + T.fxCatch;
+  if (result==='perfect'){ beep(1320,0.10,'square',0.35); beep(1760,0.14,'square',0.25); }
+  else if (result==='soso'){ beep(880,0.10,'triangle',0.28); }
+  else if (T.failBack){ beep(180,0.18,'sawtooth',0.25); }
+  drawRec();
+}
+
+/* --- 入力 ---------------------------------------------------------------- */
+function press(down){
+  if (r.phase==='idle'){ if (down) castRod(); return; }
+  if (r.phase==='wait'){ if (down){ omenSound(false); castRod(); } return; }
+  if (r.phase==='caught'){ if (down){ r.phase='idle'; castRod(); } return; }
+  if (r.phase!=='play') return;
+  const t = r.t - T.offsetMs/1000;                       // 較正のぶんをずらす
+  const w = windows();
+  if (down){
+    r.holding = true; r.pressT = t;
+    let best=-1, bestD=Infinity;
+    for (let i=0;i<r.tl.syms.length;i++){
+      if (r.res[i]) continue;
+      const d = Math.abs(t - r.tl.syms[i].start);
+      if (d < bestD){ bestD = d; best = i; }
+    }
+    // 窓の外は符号を掴まない（既定）。いまの作りは距離に上限が無い
+    if (best < 0 || (T.outMode===0 && bestD*1000 > w.graze)){
+      tapPlay('miss');
+      r.extra = (r.extra||0)+1; r.aim=-1; r.outAt = r.tNow;
+      if (T.failBack) say('窓の外', COL.miss);
+      return;
+    }
+    // 鳴り分けのためのずれの見立て。判定そのものはこの下で従来どおり行う
+    const aMs = bestD*1000;
+    tapPlay(aMs<=w.hit ? 'hit' : aMs<=w.graze ? 'graze' : 'miss');
+    r.aim = best;
+    const s = r.tl.syms[best];
+    if (T.symFlash) s.flash = r.tNow;
+    r.holdOkFired = false; r.holdOkAt = -9;
+    if (s.long) holdSoundStart();
+    if (T.judgeAt===0){                                  // 押し始めで確定する
+      const g = judgeSymbol(best, t - s.start, true);
+      pushRec((t - s.start)*1000, g);
+      if (!s.long){ r.aim=-1; r.holding=false; r.pressT=-1; }
+      else r.pending = best;                             // 保持の確認は離したとき
+    }
+  } else {
+    if (!r.holding) return;
+    r.holding = false; holdSoundStop();
+    const i = r.aim; r.aim=-1;
+    if (i<0){ r.pressT=-1; r.pending=-1; return; }
+    const s = r.tl.syms[i];
+    const held = t - r.pressT;
+    if (T.judgeAt===0){
+      // 押し始めで確定済み。長音だけ、保持できたかを見て落とす
+      if (s.long && !holdOk(s, held) && r.res[i] && r.res[i]!=='miss'){
+        r.res[i]='miss';
+        if (T.failBack) say('離すのが早い', COL.miss);
+      }
+      r.pending=-1;
+    } else {                                             // 離した瞬間に確定する（いまの作り）
+      if (r.res[i]) { r.pressT=-1; return; }
+      const kindOk = s.long ? holdOk(s, held) : true;
+      const g = judgeSymbol(i, r.pressT - s.start, kindOk);
+      pushRec((r.pressT - s.start)*1000, g);
+    }
+    r.pressT=-1;
+  }
+}
+function pushRec(dtMs, grade){
+  recent.unshift({dt:dtMs, g:grade});
+  while (recent.length>10) recent.pop();
+  if (T.earlyLate && grade!=='hit'){
+    say(dtMs<0 ? '早い '+Math.round(-dtMs)+'ms' : '遅い '+Math.round(dtMs)+'ms',
+        grade==='miss'?COL.miss:COL.graze);
+  } else if (T.earlyLate && grade==='hit'){
+    say('ぴったり', COL.hit);
+  } else if (T.wordOn){
+    say(grade==='hit'?'当たり':grade==='graze'?'かすり':'外し',
+        grade==='hit'?COL.hit:grade==='graze'?COL.graze:COL.miss);
+  }
+}
+window.addEventListener('keydown', e=>{
+  if (e.repeat) return;
+  if (e.code==='Space'||e.code==='KeyZ'||e.code==='Enter'){ e.preventDefault(); press(true); }
+});
+window.addEventListener('keyup', e=>{
+  if (e.code==='Space'||e.code==='KeyZ'||e.code==='Enter'){ e.preventDefault(); press(false); }
+});
+const cv = document.getElementById('cv');
+cv.addEventListener('mousedown', e=>{ e.preventDefault(); press(true); });
+window.addEventListener('mouseup', ()=>press(false));
+cv.addEventListener('contextmenu', e=>e.preventDefault());
+
+/* --- 進み ---------------------------------------------------------------- */
+let last = performance.now()/1000;
+r.tNow = last;
+function step(){
+  const now = performance.now()/1000;
+  const dt = Math.min(0.1, now-last); last = now; r.tNow = now;
+  if (r.phase==='wait'){
+    r.t += dt;
+    if (r.t >= r.wait) startChart();
+  } else if (r.phase==='play'){
+    r.t += dt;
+    // カウントインの音
+    if (T.countInSound){
+      const k = Math.floor(r.t / Math.max(0.0001,T.beat));
+      if (k !== r.ci && k < T.countInBeats){ r.ci = k; beep(660, 0.05, 'triangle', 0.18); }
+    }
+    // 保持が合格に届いた瞬間の合図（前の段で案Bとして作り、落としたものを入れ直す）
+    if (r.holding && r.aim>=0 && T.holdOkCue!==0 && !r.holdOkFired){
+      const sh = r.tl.syms[r.aim];
+      const held = (r.t - T.offsetMs/1000) - r.pressT;
+      if (sh.long && holdOk(sh, held)){
+        r.holdOkFired = true; r.holdOkAt = r.tNow;
+        if (T.holdOkCue===1 || T.holdOkCue===3) beep(T.holdOkFreq, 0.07, 'square', 0.30);
+      }
+    }
+    // 合図を曲に重ねたトラックで出すとき。符号の時刻ちょうどに鳴らす＝常に曲と同期する
+    if (T.cueMode===1){
+      for (let i=0;i<r.tl.syms.length;i++){
+        const s2 = r.tl.syms[i];
+        if (!r.cueFired[i] && r.t >= s2.start){
+          r.cueFired[i] = true;
+          const got = (r.res[i]==='hit' || r.res[i]==='graze' || r.aim===i);
+          if (got) cueNote(true);                        // 当てると鳴る
+          else if (T.cueDuckMs>0) {}                     // 外すと消える（何も鳴らさない）
+        }
+      }
+    }
+    // 押さずに通り過ぎた符号を外しにする
+    const w = windows();
+    for (let i=0;i<r.tl.syms.length;i++){
+      const s = r.tl.syms[i];
+      if (!r.res[i] && r.aim!==i && (r.t - T.offsetMs/1000) > s.start + w.graze/1000)
+        r.res[i] = T.passMiss ? 'miss' : 'skip';
+    }
+    if (r.t >= r.tl.total) finishChart();
+  } else if (r.phase==='caught'){
+    r.t += dt;
+    if (now >= r.fxUntil){ r.phase='idle'; castRod(); }   // 手は止めない。すぐ次を投げる
+  }
+  draw();
+  requestAnimationFrame(step);
+}
+
+/* --- 描画 ---------------------------------------------------------------- */
+const g2 = cv.getContext('2d');
+function box(x,y,w,h,fill,stroke){
+  if(fill){ g2.fillStyle=fill; g2.fillRect(x|0,y|0,w|0,h|0); }
+  if(stroke){ g2.strokeStyle=stroke; g2.strokeRect((x|0)+0.5,(y|0)+0.5,(w|0)-1,(h|0)-1); }
+}
+function txt(s,x,y,size,col,align){
+  g2.fillStyle=col||'#e8eef2'; g2.textAlign=align||'left'; g2.textBaseline='top';
+  g2.font=(size||12)+'px "Hiragino Kaku Gothic ProN","Noto Sans JP",monospace';
+  g2.fillText(s,x|0,y|0);
+}
+function draw(){
+  const W=cv.width, H=cv.height;
+  // 背景と水面
+  box(0,0,W,H,'#0a1620');
+  box(0,H*0.45,W,H*0.55, r.omen ? '#3a3320' : '#123040');
+  // 浮き
+  const fy = H*0.62 + Math.sin(r.tNow*2)*2;
+  box(W/2-T.floatSize/2, fy, T.floatSize, T.floatSize, r.omen?'#e8c05a':'#e0736b');
+  box(W/2-1, H*0.1, 2, fy-H*0.1, '#8fa3b0');            // 糸
+
+  // 上端
+  box(0,0,W,26,'#0a0f13','#2c3b45');
+  const st = r.phase==='idle' ? '投げる（押す）'
+           : r.phase==='wait' ? '待っている… '+r.wait.toFixed(1)+'秒'
+           : r.phase==='play' ? (r.t < T.beat*T.countInBeats ? 'カウントイン' : '譜面')
+           : '上がった';
+  txt(st, 10, 5, 13, '#9fd6ff');
+  txt(GRADES[r.grade]+'（'+(r.chart?r.chart.length:0)+'符号）'+(r.omen?'  予兆':''),
+      W-10, 5, 12, '#8fa3b0', 'right');
+
+  if (AB.on){
+    const nm = AB.side===0 ? '甲' : '乙';
+    box(W/2-26, 30, 52, 26, '#16303c', '#9fd6ff');
+    txt(nm, W/2, 34, 18, '#ffffff', 'center');
+  }
+  if (r.phase==='play') drawBand();
+
+  // 判定の言葉／早い遅い
+  if (r.msg && r.tNow < r.msgUntil) txt(r.msg, W/2, H*0.30, 20, r.msgCol, 'center');
+
+  // 上がった演出（手は止めない）
+  if (r.phase==='caught'){
+    const a = Math.max(0, (r.fxUntil-r.tNow)/Math.max(0.001,T.fxCatch));
+    g2.globalAlpha = a;
+    const col = r.result==='perfect'?COL.hit : r.result==='miss'?COL.miss : COL.idle;
+    const nm = FISH[place0()][Math.max(0,Math.min(4,r.grade))];
+    txt((r.result==='miss'?'逃した ':'')+nm, W/2, H*0.52, r.grade>=3?22:16, col, 'center');
+    txt(r.result==='perfect'?'完璧':r.result==='soso'?'そこそこ':'逃す', W/2, H*0.60, 13, col, 'center');
+    if (r.result==='perfect'){ g2.globalAlpha=a*0.25; box(0,26,W,H-26,COL.hit); }
+    g2.globalAlpha=1;
+  }
+  if (T.outBack===1 && (r.tNow - r.outAt) < T.flashSec){       // 画面がわずかに沈む
+    g2.globalAlpha = 0.30 * (1-(r.tNow-r.outAt)/Math.max(0.001,T.flashSec));
+    box(0,26,W,H-26,'#000000'); g2.globalAlpha=1;
+  }
+  if (r.phase==='idle') txt('押すと投げる', W/2, H*0.52, 14, '#8fa3b0', 'center');
+}
+function drawBand(){
+  const W=cv.width, H=cv.height;
+  if (r.bandT0==null) r.bandT0 = r.tNow;
+  const grow = Math.min(1, (r.tNow-r.bandT0)/Math.max(0.001,T.bandPop));
+  const h = Math.floor(T.bandH*grow), y = Math.floor((H-T.bandH)/2);
+  box(0,y,W,h,'#0a0f13','#3a4d59');                     // 全釣り場で同じ色
+  if (grow<1) return;
+  const beats = T.countInBeats + frameBeats();
+  const bw = beats * T.beatW;
+  const x0 = Math.floor((W - bw)/2);
+  const px = t => x0 + (t / T.beat) * T.beatW;
+  box(x0, y+8, T.countInBeats*T.beatW, T.bandH-16, '#0d151b');
+  for (let k=1;k<=T.countInBeats;k++)
+    box(x0 + k*T.beatW - 1, y+T.bandH/2-2, 2, 4, '#3a4d59');
+  const w = windows();
+  for (let i=0;i<r.tl.syms.length;i++){
+    const s = r.tl.syms[i];
+    const x = px(s.start), wpx = (s.dur/T.beat)*T.beatW;
+    // 判定の目印（窓の幅を薄く敷く）
+    if (T.markOn){
+      const gw = (w.graze/1000/T.beat)*T.beatW, hw = (w.hit/1000/T.beat)*T.beatW;
+      box(x-gw, y+T.bandH/2-9, gw*2, 18, 'rgba(143,163,176,0.14)');
+      box(x-hw, y+T.bandH/2-9, hw*2, 18, 'rgba(127,214,160,0.16)');
+      box(x-1, y+10, 2, T.bandH-20, '#3a4d59');
+    }
+    const res = r.res[i];
+    let col = res==='hit'?COL.hit : res==='graze'?COL.graze : res==='miss'?COL.miss
+            : res==='skip'?'#5b6d78' : COL.idle;
+    let grow2 = 0;
+    if (T.symFlash && r.tNow - s.flash < T.flashSec){
+      const pr = 1 - (r.tNow - s.flash)/Math.max(0.001,T.flashSec);   // 1→0
+      if (T.symKind===1){ grow2 = T.symGrow*2; }                       // 大きくなる
+      else if (T.symKind===2){ col = '#9fd6ff'; }                      // 色が変わる
+      else if (T.symKind===3){ grow2 = T.symGrow*3*pr; col='#ffffff'; }// 弾ける
+      else { grow2 = T.symGrow; col = '#ffffff'; }                     // 白く光る（いまの作り）
+    }
+    const held2 = (s.long && r.holding && r.aim===i);
+    if (s.long && T.holdBar===2){
+      box(x-grow2/2, y+T.bandH/2-4-grow2/2, 8+grow2, 8+grow2, col);    // 点にする
+    } else if (s.long){
+      const span = Math.max(6, wpx-3);                    // 符号の長さいっぱい
+      const relPx = span * (releaseAt(s)/Math.max(0.0001,s.dur));  // 離してよい位置
+      // 帯を描く長さ。判定は変えない。見た目だけを合わせる
+      const full = T.holdBarLen===1 ? Math.max(6, relPx)
+                 : T.holdBarLen===2 ? Math.max(6, span*T.holdBarMul)
+                 : span;
+      if (T.holdBarLen!==0){                              // 詰めた分は薄い影で残す
+        box(x+full, y+T.bandH/2-2, Math.max(0,span-full), 4, '#1a2730');
+      }
+      if (held2 && T.holdBar===1){
+        // 押している間、残りが減っていく。通った分は薄く残す
+        const done = Math.max(0, Math.min(full, px(r.t) - x));
+        box(x, y+T.bandH/2-3, done, 6, '#2c3b45');
+        box(x+done, y+T.bandH/2-4-grow2/2, full-done, 8+grow2, col);
+      } else {
+        box(x, y+T.bandH/2-4-grow2/2, full, 8+grow2, col);
+      }
+      if (T.relHint===0)      box(x+full-2,  y+T.bandH/2-10, 2, 20, '#9fd6ff');
+      else if (T.relHint===1) box(x+relPx-1, y+T.bandH/2-12, 2, 24, '#9fd6ff');
+      // 保持が合格に届いた合図（光る側）
+      if (held2 && (T.holdOkCue===2||T.holdOkCue===3) && r.tNow - r.holdOkAt < T.flashSec)
+        box(x-2, y+T.bandH/2-12, full+4, 24, 'rgba(127,214,160,0.35)');
+    } else {
+      box(x-grow2/2, y+T.bandH/2-4-grow2/2, 8+grow2, 8+grow2, col);
+    }
+  }
+  const lx = px(r.t);
+  const outLive = (r.tNow - r.outAt) < T.flashSec;
+  g2.fillStyle = (outLive && T.outBack===0) ? '#e0736b'
+               : (r.t < T.beat*T.countInBeats) ? '#5b6d78' : '#ffffff';
+  g2.fillRect(Math.floor(lx), y+8, outLive && T.outBack===0 ? 4 : 2, T.bandH-16);
+  if (outLive && T.outBack===2) txt('×', lx, y+T.bandH/2-14, 20, COL.miss, 'center');
+  if (r.tl.gapShort) txt('最小間隔が枠に収まらない（無視した）', x0, y+T.bandH+4, 11, '#e0a06b');
+}
+
+/* --- 試す組み合わせ -------------------------------------------------------
+   [行の名前, [[押す名前, 変えるつまみ], ...]]
+   同じ行の中だけで比べる。行をまたぐと何が効いたか分からなくなる。
+   ------------------------------------------------------------------------ */
+const TRY = [
+  ['長音を押している感じ', ['holdBar','holdSound','holdOkCue'], [
+    ['何も返らない（いまの作り）', {holdBar:0, holdSound:0, holdOkCue:0}],
+    ['帯が減る',                   {holdBar:1, holdSound:0, holdOkCue:0}],
+    ['持続音',                     {holdBar:0, holdSound:1, holdOkCue:0}],
+    ['繰り返し音',                 {holdBar:0, holdSound:2, holdOkCue:0}],
+    ['合格の合図',                 {holdBar:0, holdSound:0, holdOkCue:3}],
+    ['三つ全部',                   {holdBar:1, holdSound:1, holdOkCue:3}],
+  ]],
+  ['離す位置と見た目', ['holdBarLen','relHint','holdBarMul'], [
+    ['いまの作り',       {holdBarLen:0, relHint:0, holdBarMul:0.8}],
+    ['見た目＝離す位置', {holdBarLen:1, relHint:1, holdBarMul:0.8}],
+    ['帯を8割の長さに',  {holdBarLen:2, relHint:1, holdBarMul:0.8}],
+    ['帯を6割の長さに',  {holdBarLen:2, relHint:1, holdBarMul:0.6}],
+  ]],
+  ['押した瞬間の音', ['cueMode','tapKind','tapMs','tapByGrade'], [
+    ['素のピッ 35ms（いまの作り）', {cueMode:0, tapKind:0, tapMs:35,  tapByGrade:0}],
+    ['コッ 35ms',                   {cueMode:0, tapKind:1, tapMs:35,  tapByGrade:0}],
+    ['コッ 60ms',                   {cueMode:0, tapKind:1, tapMs:60,  tapByGrade:0}],
+    ['ポーン 60ms',                 {cueMode:0, tapKind:2, tapMs:60,  tapByGrade:0}],
+    ['ポーン 100ms',                {cueMode:0, tapKind:2, tapMs:100, tapByGrade:0}],
+    ['コッ 60ms・当たりかすり外しで鳴り分け', {cueMode:0, tapKind:1, tapMs:60, tapByGrade:1}],
+  ]],
+  ['押した瞬間の画面', ['symKind','symGrow','flashSec'], [
+    ['白く光る（いまの作り）', {symKind:0, symGrow:4,  flashSec:0.12}],
+    ['弾ける',                 {symKind:3, symGrow:4,  flashSec:0.12}],
+    ['大きくなる',             {symKind:1, symGrow:10, flashSec:0.12}],
+    ['色が変わる・長く残す',   {symKind:2, symGrow:4,  flashSec:0.25}],
+  ]],
+  ['窓の外で押したとき', ['outBack'], [
+    ['判定線が光る', {outBack:0}],
+    ['画面が沈む',   {outBack:1}],
+    ['×を出す',      {outBack:2}],
+    ['何も出さない', {outBack:3}],
+  ]],
+  ['合図の出し方', ['cueMode','bgmOn'], [
+    ['押した瞬間に鳴らす（いまの作り）', {cueMode:0, bgmOn:1}],
+    ['曲に重ねたトラックで出す',         {cueMode:1, bgmOn:1}],
+  ]],
+];
+
+/* --- 「どっち？」──────────────────────────────────────────────────────
+   待ちも演出も切って、長音と直後の符号だけを延々と繰り返す。
+   Cキー（か画面のボタン）で甲⇄乙がその場で入れ替わる。遊びながら切り替えて、
+   良いほうを押す。勝ったほうが残り、次の相手が出てくる。
+   一度に頭に置くのは二つだけ。並べて覚えておく必要が無い。
+   ------------------------------------------------------------------------ */
+const DRILL = {waitLo:0, waitHi:0.01, fxCatch:0.05, chartMode:2, fixedChart:'ー・ー・',
+               tight:1, countInBeats:2, bgmOn:0};
+const AB = {on:false, qi:0, champ:0, chal:1, side:0, picked:[]};
+const abBox = document.getElementById('ab');
+
+function abApply(){
+  const row = TRY[AB.qi];
+  const oi = AB.side===0 ? AB.champ : AB.chal;
+  Object.assign(T, row[2][oi][1]);
+  holdSoundStop(); bgmStop(); bgmStart();
+  buildKnobs(); abDraw();
+}
+function abStart(){
+  AB.on=true; AB.qi=0; AB.champ=0; AB.chal=1; AB.side=0; AB.picked=[];
+  Object.assign(T, DEF); Object.assign(T, DRILL);
+  abApply(); castRod();
+}
+function abPick(win){                                   // win: 0=甲 1=乙
+  const row = TRY[AB.qi];
+  AB.champ = win===0 ? AB.champ : AB.chal;
+  AB.chal++;
+  if (AB.chal >= row[2].length) abNext();
+  else { AB.side=0; abApply(); }
+}
+function abSkip(){ abNext(); }
+function abNext(){
+  const row = TRY[AB.qi];
+  AB.picked.push([row[0], row[2][AB.champ][0], row[2][AB.champ][1]]);
+  AB.qi++; AB.champ=0; AB.chal=1; AB.side=0;
+  if (AB.qi >= TRY.length){
+    AB.on=false;
+    // 選び終わったら、勝った組み合わせを全部当てた状態にして遊べるようにする
+    AB.picked.forEach(([,,set])=>Object.assign(T, set));
+    holdSoundStop(); bgmStop(); bgmStart(); buildKnobs();
+    abDraw(); return;
+  }
+  abApply();
+}
+function abToggle(){ if(!AB.on) return; AB.side = AB.side?0:1; abApply(); }
+
+function abDraw(){
+  abBox.innerHTML='';
+  const mk=(t,f,cls)=>{ const b=document.createElement('button'); b.textContent=t;
+    if(cls) b.className=cls; b.onclick=f; return b; };
+  if (!AB.on && !AB.picked.length){
+    abBox.appendChild(document.createElement('p')).className='hint';
+    abBox.lastChild.innerHTML =
+      '<b>待ちも演出も切って、長音と直後の符号だけを繰り返す。</b><br>'+
+      '遊びながら <b>Cキー</b> で甲⇄乙をその場で切り替えて、良いほうを押す。<br>'+
+      '一度に比べるのは二つだけ。6問・20回で終わる。';
+    abBox.appendChild(mk('はじめる', abStart));
+    return;
+  }
+  if (!AB.on){                                          // 終わり
+    const p=document.createElement('p'); p.className='hint';
+    p.innerHTML='<b>ぜんぶ終わり。</b>これをそのままチャットに貼る。';
+    abBox.appendChild(p);
+    const d=document.createElement('div'); d.className='done';
+    d.textContent = AB.picked.map(([q,n,set])=>
+      q+' → '+n+'\n    '+Object.entries(set).map(([k,v])=>k+'='+v).join(' ')).join('\n');
+    abBox.appendChild(d);
+    abBox.appendChild(mk('もう一度', abStart));
+    return;
+  }
+  const row=TRY[AB.qi];
+  const q=document.createElement('div'); q.className='q';
+  q.textContent=(AB.qi+1)+'／'+TRY.length+'　'+row[0];
+  abBox.appendChild(q);
+  const side=document.createElement('div'); side.className='side';
+  [['甲', AB.champ],['乙', AB.chal]].forEach(([nm,oi],i)=>{
+    const d=document.createElement('div'); if(i===AB.side) d.className='on';
+    d.textContent=nm+'　'+row[2][oi][0]; side.appendChild(d);
+  });
+  abBox.appendChild(side);
+  const h=document.createElement('div'); h.className='big';
+  h.textContent='Cキーで切り替え。良いほうを押す。';
+  abBox.appendChild(h);
+  abBox.appendChild(mk('甲がいい', ()=>abPick(0)));
+  abBox.appendChild(mk('乙がいい', ()=>abPick(1)));
+  abBox.appendChild(mk('切り替え（C）', abToggle));
+  abBox.appendChild(mk('この問いは飛ばす', abSkip));
+  abBox.appendChild(mk('やめる', ()=>{ AB.on=false; AB.picked=[]; Object.assign(T,DEF);
+    holdSoundStop(); bgmStop(); bgmStart(); buildKnobs(); abDraw(); castRod(); }));
+}
+window.addEventListener('keydown', e=>{ if(e.code==='KeyC'){ e.preventDefault(); abToggle(); } });
+
+const tryBox = document.getElementById('try');
+function buildTry(){
+  tryBox.innerHTML = '';
+  TRY.forEach((row, gi)=>{
+    const d=document.createElement('div'); d.className='tg';
+    const t=document.createElement('div'); t.className='t'; t.textContent=row[0]; d.appendChild(t);
+    const bs=document.createElement('div'); bs.className='bs';
+    row[2].forEach(([name, set], bi)=>{
+      const b=document.createElement('button'); b.textContent=name;
+      b.onclick=()=>{
+        Object.assign(T, set);
+        holdSoundStop(); bgmStop(); bgmStart();
+        if (master) master.gain.value = T.sndVol;
+        buildKnobs(); showChart();
+        [...bs.children].forEach(c=>c.classList.remove('on'));
+        b.classList.add('on');
+        document.getElementById('tryNow').textContent =
+          'いま：' + row[0].replace(/（.*/,'') + ' → ' + name;
+      };
+      bs.appendChild(b);
+    });
+    d.appendChild(bs); tryBox.appendChild(d);
+  });
+}
+
+/* --- つまみの画面 -------------------------------------------------------- */
+const knobs = document.getElementById('knobs');
+function buildKnobs(){
+  knobs.innerHTML = '';
+  let g = null;
+  for (const [id, grp, label, , type] of TUNE){
+    if (grp !== g){ g = grp; const h=document.createElement('h2'); h.textContent=g; knobs.appendChild(h); }
+    const d = document.createElement('div'); d.className='k';
+    const l = document.createElement('label'); l.textContent = label; d.appendChild(l);
+    let el;
+    if (type==='b'){
+      el = document.createElement('input'); el.type='checkbox'; el.checked = !!T[id];
+      el.onchange = ()=>{ T[id] = el.checked?1:0; onChange(id); };
+    } else if (type==='s'){
+      el = document.createElement('select');
+      CHOICE[id].forEach((o,i)=>{ const op=document.createElement('option');
+        op.value=i; op.textContent=o; el.appendChild(op); });
+      el.value = T[id];
+      el.onchange = ()=>{ T[id] = +el.value; onChange(id); };
+    } else if (type==='t'){
+      el = document.createElement('input'); el.type='text'; el.value = T[id];
+      el.oninput = ()=>{ T[id] = el.value; onChange(id); };
+    } else {
+      el = document.createElement('input'); el.type='number'; el.step='any'; el.value = T[id];
+      el.oninput = ()=>{ const v=parseFloat(el.value); if(!isNaN(v)){ T[id]=v; onChange(id); } };
+    }
+    d.appendChild(el); knobs.appendChild(d);
+  }
+}
+function onChange(id){
+  if (id==='bgmOn'||id==='sndOn'){ bgmStop(); bgmStart(); }
+  if (id.slice(0,4)==='hold'||id==='sndOn'){ holdSoundStop(); }
+  if (id==='sndVol' && master) master.gain.value = T.sndVol;
+  if (id==='sndOn' && !T.sndOn) omenSound(false);
+  showChart();
+}
+function showChart(){
+  const el = document.getElementById('chartNow');
+  if (!r.tl){ el.textContent=''; return; }
+  const gaps = r.tl.syms.map((s,i)=> i===0 ? '' :
+    Math.round((s.start - (r.tl.syms[i-1].start + r.tl.syms[i-1].dur))*1000)+'ms').filter(Boolean);
+  el.textContent = 'いまの譜面：' + r.chart + '　符号のあいだ：' + (gaps.join(' / ') || '—');
+}
+function drawRec(){
+  const el = document.getElementById('rec');
+  if (!recent.length){ el.textContent='まだ無い'; return; }
+  const lines = recent.map((x,i)=>{
+    const s = x.dt<0 ? '早い' : '遅い';
+    const n = Math.abs(x.dt).toFixed(0).padStart(4,' ');
+    const g = x.g==='hit'?'当たり':x.g==='graze'?'かすり':'外し';
+    return String(i+1).padStart(2,' ')+'  '+s+' '+n+'ms  '+g;
+  });
+  const avg = recent.reduce((a,x)=>a+x.dt,0)/recent.length;
+  lines.push('—'.repeat(20));
+  lines.push('平均 '+(avg<0?'早い ':'遅い ')+Math.abs(avg).toFixed(1)+'ms');
+  el.textContent = lines.join('\n');
+}
+document.getElementById('bOmen').onclick = ()=>{ nextOmen = true; };
+document.getElementById('bReset').onclick = ()=>{
+  Object.assign(T, DEF); holdSoundStop(); buildKnobs(); bgmStop(); bgmStart(); showChart();
+  document.querySelectorAll('#try button').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tryNow').textContent = 'いま：既定（8/19版と同じ）';
+};
+
+document.getElementById('bTry').onclick = ()=>{
+  const w=document.getElementById('tryWrap');
+  const open = w.style.display==='none';
+  w.style.display = open ? '' : 'none';
+  document.getElementById('bTry').textContent = open ? 'ひとつずつ試す（畳む）' : 'ひとつずつ試す（畳んである）';
+};
+document.getElementById('bKnobs').onclick = ()=>{
+  const k=document.getElementById('knobs');
+  const open = k.style.display==='none';
+  k.style.display = open ? '' : 'none';
+  document.getElementById('bKnobs').textContent = open ? 'つまみを隠す' : 'つまみを全部出す';
+};
+
+buildTry();
+abDraw();
+buildKnobs();
+castRod();
+r.phase='idle';
+drawRec();
+step();
+</script>
+</body>
+</html>
