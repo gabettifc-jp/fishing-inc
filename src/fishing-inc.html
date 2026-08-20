@@ -660,7 +660,10 @@ function bandSec(){ return beatSec() * (T.countInBeats + frameBeats()); }
    3章が「間隔も毎回ランダムに振り直す」と決めているので、間隔から音を決めると
    同じ譜面でも毎回ちがう旋律になってしまう。並びだけなら、**同じ譜面はいつも同じ旋律**。
    音階の端では折り返す（頭打ちにすると同じ音が続く） */
-function melodyOf(chart){
+function melodyOf(chartIn){
+  // **譜面は文字列でも配列でも来る。**timeline() は文字列を受け取る（castRod）ので、
+  // ここで必ず配列に直す。直さないと文字列に .map が無くて落ちる
+  const chart = [...chartIn];
   const top = MEL_RATIO.length-1;
   // 0=譜面の形で決まる／1=押すたびに昇る（10章「旋律の決め方」）
   if (Math.round(T.melMode) === 1)

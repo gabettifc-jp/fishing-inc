@@ -157,9 +157,9 @@ add(16, '入れ食いが効き始める餌の段数',
 const mel = await pg.evaluate(() => {
   const all = [...POOL, ...BOSS_CHART];
   const keep = T.melMode; T.melMode = 0;                  // 「譜面の形」のときを見る
-  const ms = all.map(c => melodyOf([...c]).join(''));
+  const ms = all.map(c => melodyOf(c).join(''));            // **本物と同じ「文字列」で呼ぶ**
   T.melMode = keep;
-  const a = timeline([...'・ー・・ー・'], false), b = timeline([...'・ー・・ー・'], false);
+  const a = timeline('・ー・・ー・', false), b = timeline('・ー・・ー・', false);
   const gapSame = a.syms.map(s=>s.start.toFixed(2)).join() === b.syms.map(s=>s.start.toFixed(2)).join();
   const hz = [...new Set(all.flatMap(c=>melodyOf([...c])))].map(k=>Math.round(melHz(k)));
   return {本数: all.length, 別々: new Set(ms).size, いまの決め方: T.melMode,
@@ -180,7 +180,7 @@ add(19, '旋律が高い音域に収まっているか（報酬の音は高い�
 const snd = await pg.evaluate(() => {
   scr='A'; overlay=null; blockUntil=0; S.perks={}; syncRods();
   const r=rods[0]; r.phase='play'; r.res=[]; r.extra=0; r.holding=false; r.aim=-1;
-  r.tl = timeline([...'・ー・'], false); r.t = r.tl.syms[1].start;
+  r.tl = timeline('・ー・', false); r.t = r.tl.syms[1].start;
   press(true); const hold = !!melVoice; press(false); const after = !!melVoice;
   r.res=[]; r.aim=-1; r.t = 0.1; press(true); const outside = !!melVoice; press(false);
   return {長音で伸びる: hold, 離すと止まる: !after, 窓の外で鳴らない: !outside,
@@ -197,7 +197,7 @@ add(22, '窓の外では鳴らないか（旋律に穴があく）',
 const tick = await pg.evaluate(() => {
   const hits = []; const real = beep; window.beep = hz => hits.push(Math.round(hz));
   scr='A'; syncRods(); const r = rods[0];
-  r.phase='play'; r.t=0; r.countIn=-1; r.tl=timeline([...'・ー・'],false); r.res=[];
+  r.phase='play'; r.t=0; r.countIn=-1; r.tl=timeline('・ー・',false); r.res=[];
   const keep = T.beatTick; T.beatTick = 0;
   for (let k=0;k<20;k++){ r.t = k*beatSec()+0.01; update(0.016); }
   const only = hits.slice();
@@ -211,6 +211,30 @@ add(23, 'カウントインの4拍が鳴るか', `${tick.カウントイン}回�
     tick.カウントイン === 4);
 add(24, '拍を刻む切替が効くか', `切 ${tick.カウントイン}回／入 ${tick.刻むとき}回`,
     tick.刻むとき > tick.カウントイン);
+
+/* 25. 実際に投げて、魚を一匹あげるところまで通るか（本物の道すじ） */
+const cast = await pg.evaluate(async () => {
+  const errs = [];
+  const onErr = e => errs.push(e.message || String(e));
+  window.addEventListener('error', ev => onErr(ev.error || ev.message));
+  S = newState(); scr='A'; syncRods(); T.waitLo=0.05; T.waitHi=0.1;
+  const r = rods[0];
+  let landed = 0;
+  for (let n=0; n<6 && errs.length===0; n++){
+    try {
+      castRod(r);                                  // **本物の道すじ**（譜面は文字列で来る）
+      r.t = r.wait + 0.001; update(0.016);         // 掛かるまで進める
+      if (r.phase !== 'play') continue;
+      for (const s of r.tl.syms){ r.t = s.start; press(true); press(false); }
+      r.t = r.tl.total + 1; update(0.016);
+      if (r.phase === 'idle') landed++;
+    } catch(e){ onErr(e); }
+  }
+  return {投げた回数: 6, 上がった: landed, エラー: errs.slice(0,2)};
+});
+add(25, '投げて魚をあげるところまで通るか',
+    cast.エラー.length ? cast.エラー[0] : `${cast.上がった}／${cast.投げた回数}回`,
+    cast.エラー.length===0 && cast.上がった > 0);
 
 /* --- 出力 --- */
 const w = Math.max(...rows.map(r=>r.what.length));

@@ -40,3 +40,14 @@ console.log('エラー', errs.length ? errs.slice(0, 5) : 'なし');
 await pg.screenshot({ path: path.resolve(HERE, '..', 'builds', 'now.png') });
 console.log('画面を builds/now.png に保存した');
 await b.close();
+
+// **失敗は必ず最後の行と終了コードに出す。**
+// `| tail -1` で見たときに「保存した」だけが残ると、エラーを見落とす。
+// 一度これで実際に見落とした（2026-08-20・魚が掛かると落ちる件）
+if (errs.length){
+  console.error('\n★エラーあり（' + errs.length + '件）');
+  for (const e of errs.slice(0,5)) console.error('  ' + e);
+  process.exit(1);
+}
+console.log('\nエラーなし');
+process.exit(0);
