@@ -153,6 +153,37 @@ add(16, '入れ食いが効き始める餌の段数',
     bites.length ? `餌${bites[0].lv}段から（${bites[0].素}秒 → ${bites[0].入れ食い}秒）` : '一度も効かない',
     bites.length > 0 && bites[0].lv >= 20);
 
+/* 17. 旋律（11章） */
+const mel = await pg.evaluate(() => {
+  const all = [...POOL, ...BOSS_CHART];
+  const ms = all.map(c => melodyOf([...c]).join(''));
+  const a = timeline([...'・ー・・ー・'], false), b = timeline([...'・ー・・ー・'], false);
+  const gapSame = a.syms.map(s=>s.start.toFixed(2)).join() === b.syms.map(s=>s.start.toFixed(2)).join();
+  const hz = [...new Set(all.flatMap(c=>melodyOf([...c])))].map(k=>Math.round(melHz(k)));
+  return {本数: all.length, 別々: new Set(ms).size,
+          同じ譜面で同じ旋律: a.mel.join('')===b.mel.join(''), 間隔は毎回同じ: gapSame,
+          いちばん低い音: Math.min(...hz), いちばん高い音: Math.max(...hz)};
+});
+add(17, '譜面ごとに別々の旋律になるか', `${mel.別々}／${mel.本数}本`, mel.別々===mel.本数);
+add(18, '同じ譜面はいつも同じ旋律か（間隔は毎回ちがうのに）',
+    `旋律 ${mel.同じ譜面で同じ旋律?'同じ':'ちがう'}／間隔 ${mel.間隔は毎回同じ?'同じ':'ちがう'}`,
+    mel.同じ譜面で同じ旋律 && !mel.間隔は毎回同じ);
+add(19, '旋律が高い音域に収まっているか（報酬の音は高い音）',
+    `${mel.いちばん低い音}〜${mel.いちばん高い音}Hz`, mel.いちばん低い音 >= 1000);
+
+const snd = await pg.evaluate(() => {
+  scr='A'; overlay=null; blockUntil=0; S.perks={}; syncRods();
+  const r=rods[0]; r.phase='play'; r.res=[]; r.extra=0; r.holding=false; r.aim=-1;
+  r.tl = timeline([...'・ー・'], false); r.t = r.tl.syms[1].start;
+  press(true); const hold = !!melVoice; press(false); const after = !!melVoice;
+  r.res=[]; r.aim=-1; r.t = 0.1; press(true); const outside = !!melVoice; press(false);
+  return {長音で伸びる: hold, 離すと止まる: !after, 窓の外で鳴らない: !outside};
+});
+add(20, '長音は押しているあいだ伸びるか', snd.長音で伸びる?'伸びる':'伸びない', snd.長音で伸びる);
+add(21, '離すと止まるか', snd.離すと止まる?'止まる':'止まらない', snd.離すと止まる);
+add(22, '窓の外では鳴らないか（旋律に穴があく）',
+    snd.窓の外で鳴らない?'鳴らない':'鳴る', snd.窓の外で鳴らない);
+
 /* --- 出力 --- */
 const w = Math.max(...rows.map(r=>r.what.length));
 console.log('測った（つまらなさの流れの「測る」段）\n');
