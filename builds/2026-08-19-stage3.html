@@ -1,0 +1,1494 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>釣りインクリメンタル（仮題）／第一段</title>
+<style>
+  :root{
+    --ink:#e8eef2; --dim:#8fa3b0; --line:#2b3b46; --bg:#0d1418; --panel:#121e25;
+    --gold:#e8c05a; --good:#7fd6a0; --bad:#e0736b; --mid:#9fb6c4;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",monospace,sans-serif;
+    font-size:13px;line-height:1.5}
+  #wrap{display:flex;gap:10px;padding:10px;align-items:flex-start;flex-wrap:wrap}
+  #stage{position:relative;flex:0 0 auto}
+  canvas{display:block;background:#000;image-rendering:pixelated;border:1px solid var(--line)}
+  .side{flex:1 1 320px;min-width:300px;max-width:520px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:4px;margin-bottom:8px}
+  .box>h3{margin:0;padding:6px 8px;font-size:12px;background:#18272f;border-bottom:1px solid var(--line);
+    cursor:pointer;user-select:none;display:flex;justify-content:space-between;align-items:center}
+  .box>h3 .caret{color:var(--dim)}
+  .box>div{padding:6px 8px;max-height:420px;overflow:auto}
+  .box.closed>div{display:none}
+  .row{display:flex;align-items:center;gap:6px;padding:1px 0}
+  .row label{flex:1 1 auto;color:var(--dim);font-size:11px;min-width:0;overflow-wrap:anywhere}
+  .row input[type=number]{width:96px;background:#0a1216;color:var(--ink);border:1px solid var(--line);
+    border-radius:3px;padding:2px 4px;font-family:inherit;font-size:11px;text-align:right}
+  .row input[type=checkbox]{width:14px;height:14px}
+  button{background:#1d2f39;color:var(--ink);border:1px solid var(--line);border-radius:3px;
+    padding:4px 8px;font-family:inherit;font-size:11px;cursor:pointer}
+  button:hover{background:#27404d}
+  button:disabled{opacity:.4;cursor:default}
+  .btnrow{display:flex;gap:6px;flex-wrap:wrap;margin:4px 0}
+  table{border-collapse:collapse;width:100%;font-size:11px}
+  th,td{border:1px solid var(--line);padding:2px 4px;text-align:right}
+  th{background:#18272f;color:var(--dim);text-align:center}
+  td.l,th.l{text-align:left}
+  pre{white-space:pre-wrap;word-break:break-all;background:#0a1216;border:1px solid var(--line);
+    padding:6px;font-size:10px;max-height:200px;overflow:auto;margin:4px 0}
+  .hint{color:var(--dim);font-size:11px;margin:2px 0}
+  .gold{color:var(--gold)} .good{color:var(--good)} .bad{color:var(--bad)} .mid{color:var(--mid)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div class="hint" id="help"></div>
+  </div>
+  <div class="side" id="side"></div>
+</div>
+<script>
+"use strict";
+/* ============================================================================
+   釣りインクリメンタル（仮題） 第一段の実装
+   仕様書 spec.md 第17版 に対応。数値は一つもコードに直接書かない。
+   すべて下の TUNE（10章のつまみ）と DATA（仕様書の表）から引く。
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   つまみ（仕様書 10章）。id -> {g:分類, l:表示名, v:初期値, t:型}
+   t: 'n'=数値 / 'b'=入切
+   分類は 10章の見出しをそのまま使う。
+   ------------------------------------------------------------------------- */
+const TUNE_DEF = [
+  // 1. リズムゲー
+  ['beat',            '1. リズムゲー', '一拍の長さ（秒）',                 0.25, 'n'],
+  ['dotBeats',        '1. リズムゲー', '短音の長さ（拍）',                 1,    'n'],
+  ['dashBeats',       '1. リズムゲー', '長音の長さ（拍）',                 2,    'n'],
+  ['maxSyms',         '1. リズムゲー', '符号数の上限',                     8,    'n'],
+  ['countInBeats',    '1. リズムゲー', 'カウントイン（拍）',               4,    'n'],
+  ['countInSound',    '1. リズムゲー', 'カウントインの音（1で鳴らす）',    1,    'n'],
+  ['winHit',          '1. リズムゲー', '判定の幅・当たり（ミリ秒）',       60,   'n'],
+  ['winGraze',        '1. リズムゲー', '判定の幅・かすり（ミリ秒）',       140,  'n'],
+  ['holdKeep',        '1. リズムゲー', '長音を押している必要のある割合',   0.8,  'n'],
+  ['missRatio0',      '1. リズムゲー', '「逃す」になる外しの割合（初期）', 0.5,  'n'],
+  ['slip2',           '1. リズムゲー', '完璧で許す取りこぼし・2符号',      0,    'n'],
+  ['slip3',           '1. リズムゲー', '同・3符号',                        0,    'n'],
+  ['slip4',           '1. リズムゲー', '同・4符号',                        1,    'n'],
+  ['slip5',           '1. リズムゲー', '同・5符号',                        1,    'n'],
+  ['slip6',           '1. リズムゲー', '同・6符号',                        1,    'n'],
+  ['slip7',           '1. リズムゲー', '同・7符号',                        2,    'n'],
+  ['slip8',           '1. リズムゲー', '同・8符号',                        2,    'n'],
+
+  // 2. 連続ボーナス
+  ['comboBase',       '2. 連続ボーナス', '連続1回目の倍率',               1.0,  'n'],
+  ['comboStep',       '2. 連続ボーナス', '1回ごとの上乗せ',               0.1,  'n'],
+  ['comboMax',        '2. 連続ボーナス', '倍率の上限',                    5.0,  'n'],
+  ['perfectMult',     '2. 連続ボーナス', '完璧の倍率（基準）',           2.0,  'n'],
+
+  // 3. 待ち時間
+  ['waitLo',          '3. 待ち時間', '待ち時間の下限（秒）',              2.0,  'n'],
+  ['waitHi',          '3. 待ち時間', '待ち時間の上限（秒）',              8.0,  'n'],
+  ['waitSkew',        '3. 待ち時間', '分布の寄せ方', 2.0, 'n'],
+  ['rareTilt',        '3. 待ち時間', 'レア率の傾斜（第一段は0＝傾斜なし）', 0,   'n'],
+
+  // 4. 超大物と予兆
+  ['omenRate',        '4. 超大物と予兆', '予兆が出る確率（1秒につき）',    0.005, 'n'],
+  ['omenRate2',       '4. 超大物と予兆', '同・パーク10を取った後',        0.010, 'n'],
+  ['omenGap',         '4. 超大物と予兆', '予兆どうしの最低間隔（秒）',    30,   'n'],
+  ['omenHold',        '4. 超大物と予兆', '予兆の持続（秒）',              15,   'n'],
+  ['autoBossRate',    '4. 超大物と予兆', '自動の竿が主を掛ける確率（1投）', 0.03, 'n'],
+  ['omenWaitLo',      '4. 超大物と予兆', '予兆から掛かるまで・下限（秒）', 6,   'n'],
+  ['omenWaitHi',      '4. 超大物と予兆', '予兆から掛かるまで・上限（秒）', 8,   'n'],
+
+  // 5. 魚の単価
+  ['price0',          '5. 魚の単価', '基準の単価・雑魚',                  10,   'n'],
+  ['price1',          '5. 魚の単価', '基準の単価・並',                    30,   'n'],
+  ['price2',          '5. 魚の単価', '基準の単価・良型',                  100,  'n'],
+  ['price3',          '5. 魚の単価', '基準の単価・大物',                  400,  'n'],
+  ['price4',          '5. 魚の単価', '基準の単価・超大物',                3000, 'n'],
+  ['placeMul1',       '5. 魚の単価', '釣り場倍率・1 用水路',              1,    'n'],
+  ['placeMul2',       '5. 魚の単価', '釣り場倍率・2 濁った川',            5,    'n'],
+  ['placeMul3',       '5. 魚の単価', '釣り場倍率・3 澄んだ湖',            25,   'n'],
+  ['placeMul4',       '5. 魚の単価', '釣り場倍率・4 堤防',                125,  'n'],
+  ['placeMul5',       '5. 魚の単価', '釣り場倍率・5 荒れた沖',            600,  'n'],
+  ['placeMul6',       '5. 魚の単価', '釣り場倍率・6 氷の下',              3000, 'n'],
+  ['placeMul7',       '5. 魚の単価', '釣り場倍率・7 洞窟',                15625,'n'],
+  ['placeMul8',       '5. 魚の単価', '釣り場倍率・8 深海',                78125,'n'],
+
+  // 6. 出現確率
+  ['rate0',           '6. 出現確率', '雑魚',                              0.40, 'n'],
+  ['rate1',           '6. 出現確率', '並',                                0.30, 'n'],
+  ['rate2',           '6. 出現確率', '良型',                              0.20, 'n'],
+  ['rate3',           '6. 出現確率', '大物',                              0.10, 'n'],
+
+  // 7. 道具
+  ['rodCost',         '7. 道具', '竿・初期の値段',                        500,  'n'],
+  ['rodGrow',         '7. 道具', '竿・伸び率',                            3.0,  'n'],
+  ['baitCost',        '7. 道具', '餌・初期の値段',                        100,  'n'],
+  ['baitGrow',        '7. 道具', '餌・伸び率',                            1.15, 'n'],
+  ['baitEff',         '7. 道具', '餌・一段あたり（待ち時間 ×(1-率)）',    0.03, 'n'],
+  ['lineCost',        '7. 道具', '釣り糸・初期の値段',                    150,  'n'],
+  ['lineGrow',        '7. 道具', '釣り糸・伸び率',                        1.18, 'n'],
+  ['lineEff',         '7. 道具', '釣り糸・一段あたり（逃す割合 ×(1+率)）',0.02, 'n'],
+  ['reelCost',        '7. 道具', 'リール・初期の値段',                    300,  'n'],
+  ['reelGrow',        '7. 道具', 'リール・伸び率',                        1.25, 'n'],
+  ['reelEff',         '7. 道具', 'リール・一段あたり（判定幅 ×(1+率)）',  0.03, 'n'],
+  ['coolCost',        '7. 道具', 'クーラー・初期の値段',                  200,  'n'],
+  ['coolGrow',        '7. 道具', 'クーラー・伸び率',                      1.20, 'n'],
+  ['coolEff',         '7. 道具', 'クーラー・一段あたり（売値 ×(1+率)）',  0.05, 'n'],
+  ['deep12',          '7. 道具', '深場の精度・釣り場1〜2の倍率',          1.0,  'n'],
+  ['deep34',          '7. 道具', '深場の精度・釣り場3〜4の倍率',          0.7,  'n'],
+  ['deep56',          '7. 道具', '深場の精度・釣り場5〜6の倍率',          0.5,  'n'],
+  ['deep78',          '7. 道具', '深場の精度・釣り場7〜8の倍率',          0.35, 'n'],
+
+  // 8. 移動手段
+  ['move2',           '8. 移動手段', '2 濁った川（長靴）',                2220, 'n'],
+  ['move3',           '8. 移動手段', '3 澄んだ湖（自転車）',              171200,'n'],
+  ['move4',           '8. 移動手段', '4 堤防（原付）',                    1744000,'n'],
+  ['move5',           '8. 移動手段', '5 荒れた沖（船）',                  154880000,'n'],
+  ['move6',           '8. 移動手段', '6 氷の下（防寒具）',                7728000000,'n'],
+  ['move7',           '8. 移動手段', '7 洞窟（明かりとロープ）',          262400000000,'n'],
+  ['move8',           '8. 移動手段', '8 深海（潜水艇）',                  95360000000000,'n'],
+
+  // 9. 転生
+  ['presExp',         '9. 転生', '式の指数',                             0.3,  'n'],
+  ['dexDoneMult',     '10. パーク（無限段）', '図鑑を揃えたときの恒久倍率',    20,  'n'],
+  ['infCoolBase',     '10. パーク（無限段）', 'クーラー売値・1段目の値段',      40,  'n'],
+  ['infCoolGrow',     '10. パーク（無限段）', '同・値段の伸び率',              1.8, 'n'],
+  ['infCoolEff',      '10. パーク（無限段）', '同・効果の伸び率（売値の倍率）', 1.6, 'n'],
+  ['infRodBase',      '10. パーク（無限段）', '竿本数・1段目の値段',            60,  'n'],
+  ['infRodGrow',      '10. パーク（無限段）', '同・値段の伸び率',              2.0, 'n'],
+  ['infRodEff',       '10. パーク（無限段）', '同・効果の伸び率',              1.6, 'n'],
+  ['presWorth',       '9. 転生', '今回もらえる経験が持ち分のこの倍で転生', 1.0, 'n'],
+  ['presFar',         '9. 転生', '次の一歩がこの秒数以上なら転生の合図', 1800, 'n'],
+  ['presDiv',         '9. 転生', '式の割る数',                           120,  'n'],
+  ['presLock',        '9. 転生', '恒久ボーナスのロック（なし＝切）',     0,    'b'],
+
+  // 10. パーク・掛かる型（15）
+  ['pkRod1c','10. パーク（掛かる型）','竿1・値段',8,'n'],
+  ['pkRod1v','10. パーク（掛かる型）','竿1・竿の伸び率を→',2.7,'n'],
+  ['pkRod2c','10. パーク（掛かる型）','竿2・値段',82,'n'],
+  ['pkRod2v','10. パーク（掛かる型）','竿2・開始時の自動の竿 +本',1,'n'],
+  ['pkRod3c','10. パーク（掛かる型）','竿3・値段',3041,'n'],
+  ['pkRod3v','10. パーク（掛かる型）','竿3・自動の竿の精度 +',0.10,'n'],
+  ['pkBait1c','10. パーク（掛かる型）','餌1・値段',2,'n'],
+  ['pkBait1v','10. パーク（掛かる型）','餌1・餌一段の効きを→',0.04,'n'],
+  ['pkBait2c','10. パーク（掛かる型）','餌2・値段',24,'n'],
+  ['pkBait2v','10. パーク（掛かる型）','餌2・餌の伸び率を→',1.12,'n'],
+  ['pkBait3c','10. パーク（掛かる型）','餌3・値段',2239,'n'],
+  ['pkBait3v','10. パーク（掛かる型）','餌3・餌一段の効きを→',0.05,'n'],
+  ['pkLine1c','10. パーク（掛かる型）','糸1・値段',8,'n'],
+  ['pkLine1v','10. パーク（掛かる型）','糸1・糸一段の効きを→',0.03,'n'],
+  ['pkLine2c','10. パーク（掛かる型）','糸2・値段',82,'n'],
+  ['pkLine2v','10. パーク（掛かる型）','糸2・糸の伸び率を→',1.15,'n'],
+  ['pkLine3c','10. パーク（掛かる型）','糸3・値段',2402,'n'],
+  ['pkLine3v','10. パーク（掛かる型）','糸3・逃したとき釣れている確率',0.05,'n'],
+  ['pkReel1c','10. パーク（掛かる型）','リール1・値段',6,'n'],
+  ['pkReel1v','10. パーク（掛かる型）','リール1・リール一段の効きを→',0.04,'n'],
+  ['pkReel2c','10. パーク（掛かる型）','リール2・値段',24,'n'],
+  ['pkReel2v','10. パーク（掛かる型）','リール2・リールの伸び率を→',1.20,'n'],
+  ['pkReel3c','10. パーク（掛かる型）','リール3・値段',2239,'n'],
+  ['pkReel3v','10. パーク（掛かる型）','リール3・完璧の判定幅 +',0.20,'n'],
+  ['pkCool1c','10. パーク（掛かる型）','クーラー1・値段',4,'n'],
+  ['pkCool1v','10. パーク（掛かる型）','クーラー1・クーラー一段の効きを→',0.06,'n'],
+  ['pkCool2c','10. パーク（掛かる型）','クーラー2・値段',46,'n'],
+  ['pkCool2v','10. パーク（掛かる型）','クーラー2・クーラーの伸び率を→',1.17,'n'],
+  ['pkCool3c','10. パーク（掛かる型）','クーラー3・値段',2402,'n'],
+  ['pkCool3v','10. パーク（掛かる型）','クーラー3・完璧の倍率 +',0.5,'n'],
+
+  // 10. パーク・開く型（10）
+  ['opn1c','10. パーク（開く型）','1 自動の竿が解放される・値段',3,'n'],
+  ['opn2c','10. パーク（開く型）','2 自動の精度1段目・値段',78,'n'],
+  ['opn2v','10. パーク（開く型）','2 そこそこが出る確率を→',0.55,'n'],
+  ['opn3c','10. パーク（開く型）','3 自動の精度2段目・値段',403,'n'],
+  ['opn3v','10. パーク（開く型）','3 そこそこが出る確率を→',0.70,'n'],
+  ['autoAcc0','10. パーク（開く型）','自動の精度・初期（そこそこが出る確率）',0.40,'n'],
+  ['opn4c','10. パーク（開く型）','4 売るのが自動・値段',16,'n'],
+  ['opn5c','10. パーク（開く型）','5 道具を自動で買う・値段',38,'n'],
+  ['opn6c','10. パーク（開く型）','6 自動でも超大物を捌ける・値段',2200,'n'],
+  ['opn7c','10. パーク（開く型）','7 図鑑が解放される・値段',4,'n'],
+  ['opn8c','10. パーク（開く型）','8 図鑑の埋まり具合で売値・値段',422,'n'],
+  ['opn8v','10. パーク（開く型）','8 1種につき売値 +',0.005,'n'],
+  ['opn9c','10. パーク（開く型）','9 未発見が掛かりやすい・値段',422,'n'],
+  ['opn9v','10. パーク（開く型）','9 未発見の出現率 ×',2,'n'],
+  ['opn10c','10. パーク（開く型）','10 主が出やすくなる・値段',3041,'n'],
+  ['dexAllBonus','10. パーク（開く型）','その釣り場を全部釣ったときの売値 +',0.10,'n'],
+
+  // 10. パーク・持ち越し型（4）
+  ['car1c','10. パーク（持ち越し型）','1 道具を一つ持ち越す・値段',4,'n'],
+  ['car2c','10. パーク（持ち越し型）','2 持ち越し枠 一つ→二つ・値段',46,'n'],
+  ['car3c','10. パーク（持ち越し型）','3 持ち越し枠 二つ→三つ・値段',4788,'n'],
+  ['car4c','10. パーク（持ち越し型）','4 開始時に所持金が残る・値段',4788,'n'],
+  ['car4v','10. パーク（持ち越し型）','4 前の周の稼ぎの割合',0.01,'n'],
+  ['carryRod','10. パーク（持ち越し型）','持ち越す割合・竿',1.00,'n'],
+  ['carryBait','10. パーク（持ち越し型）','持ち越す割合・餌',0.30,'n'],
+  ['carryLine','10. パーク（持ち越し型）','持ち越す割合・釣り糸',0.40,'n'],
+  ['carryReel','10. パーク（持ち越し型）','持ち越す割合・リール',0.50,'n'],
+  ['carryCool','10. パーク（持ち越し型）','持ち越す割合・クーラー',0.40,'n'],
+
+  // 10. 効果の天井
+  ['capHit',   '10. 効果の天井', '判定の幅・当たり（ミリ秒まで）',       120,  'n'],
+  ['capGraze', '10. 効果の天井', '判定の幅・かすり（ミリ秒まで）',       250,  'n'],
+  ['capMiss',  '10. 効果の天井', '「逃す」になる外しの割合（まで）',     0.8,  'n'],
+  ['capWaitLo','10. 効果の天井', '待ち時間の下限（秒まで）',             1.0,  'n'],
+
+  // 11. 周
+  ['castTarget1', '11. 周', '1周目の目標投数（導入）',                  20,   'n'],
+  ['castTarget',  '11. 周', 'それ以外の周の目標投数',                   45,   'n'],
+  ['runCountTarget','11. 周', '通しの周数の目安',                        23,   'n'],
+
+  // 12. 画面
+  ['scrW',        '12. 画面', '画面の横幅',                              720,  'n'],
+  ['scrH',        '12. 画面', '画面の縦',                                405,  'n'],
+  ['beatW',       '12. 画面', '一拍の幅（帯20拍ぶん÷20）',              27,   'n'],
+  ['bandPad',     '12. 画面', '帯の左右の余白',                          90,   'n'],
+  ['bandH',       '12. 画面', '譜面の帯の高さ',                          80,   'n'],
+  ['bandPop',     '12. 画面', '帯がポップする速さ（秒）',                0.2,  'n'],
+  ['floatSize',   '12. 画面', '浮きの大きさ',                            8,    'n'],
+  ['fishSmall',   '12. 画面', '魚の絵（雑魚）',                          16,   'n'],
+  ['fishHugeFrac','12. 画面', '魚の絵（超大物）画面に対する割合',        0.6,  'n'],
+  ['rodW',        '12. 画面', '竿の先の太さ',                            3,    'n'],
+  ['rodsDrawn',   '12. 画面', '竿を描く上限の本数',                      8,    'n'],
+
+  // 13. 演出
+  ['fxCatchSmall','13. 演出', '魚が上がった・雑魚（秒）',                0.1,  'n'],
+  ['fxCatchBig',  '13. 演出', '魚が上がった・大物（秒）',                0.3,  'n'],
+  ['fxDigit',     '13. 演出', '桁が変わった（秒）',                      0.4,  'n'],
+  ['fxPlace',     '13. 演出', '釣り場が変わった（秒・手を止める）',      1.5,  'n'],
+  ['fxHuge',      '13. 演出', '超大物が上がった（秒・手を止める）',      1.0,  'n'],
+  ['fxAuto',      '13. 演出', '自動化が開いた（秒・手を止める）',        2.0,  'n'],
+  ['fxPrestige',  '13. 演出', '転生した（秒・手を止める）',              3.0,  'n'],
+
+  // 10.5 セーブ
+  ['autoSave',    '10.5 セーブ', '自動で保存する',                       1,    'b'],
+
+  // 音（11章）
+  ['sndOn',       '音（11章）', '音を鳴らす',                            1,    'b'],
+  ['bgmOn',       '音（11章）', 'BGMを鳴らす',                           1,    'b'],
+  ['sndVol',      '音（11章）', '音量',                                  0.25, 'n'],
+];
+
+const T = {};                       // つまみの現在値
+for (const [id,,,v] of TUNE_DEF) T[id] = v;
+
+/* ---------------------------------------------------------------------------
+   仕様書の表（つまみではない決めごと）
+   ------------------------------------------------------------------------- */
+const GRADES = ['雑魚','並','良型','大物','超大物'];   // 0..4
+
+// 4章 釣り場8個
+const PLACES = [
+  {n:'用水路',      mood:'昼下がり。草がぼうぼう', move:'（最初から）',    sky:'#7fb2d8', land:'#6f8f4a', water:'#4f7f5f'},
+  {n:'濁った川',    mood:'曇り。水が茶色い',       move:'長靴',            sky:'#9aa4a8', land:'#5f6b45', water:'#6a5638'},
+  {n:'澄んだ湖',    mood:'早朝。霧。鏡のような水面', move:'自転車',        sky:'#cdd8dc', land:'#5d7a63', water:'#5f8f9a'},
+  {n:'堤防',        mood:'夕方。オレンジの空',     move:'原付',            sky:'#d89a5a', land:'#7a6a5a', water:'#3f5f75'},
+  {n:'荒れた沖',    mood:'嵐。波が高い。雨',       move:'船',              sky:'#4d5a63', land:'#3f4a52', water:'#2f4a5c'},
+  {n:'氷の下',      mood:'白と青。静か',           move:'防寒具',          sky:'#cfe2ea', land:'#dfeef4', water:'#4a7f9e'},
+  {n:'洞窟の水たまり', mood:'暗い。松明の明かり',  move:'明かりとロープ',  sky:'#1a1410', land:'#2e2620', water:'#25302e'},
+  {n:'深海',        mood:'真っ黒。生き物が光る',   move:'潜水艇',          sky:'#05080c', land:'#070b12', water:'#081826'},
+];
+
+// 5章 魚40種（釣り場 × 格）
+// 5章 魚72種。格ごとに2種、主だけ1種。
+// 並びは 雑魚a,雑魚b, 並a,並b, 良型a,良型b, 大物a,大物b, 主 の9枠
+const FISH = [
+  ['メダカ','タモロコ','ドジョウ','タナゴ','フナ','ブルーギル','ナマズ','ソウギョ','ハクレン'],
+  ['ウグイ','カワムツ','オイカワ','ニゴイ','コイ','ヘラブナ','ライギョ','アメリカナマズ','スッポン'],
+  ['ワカサギ','ヨシノボリ','ヒメマス','イワナ','ニジマス','サクラマス','ブラックバス','ビワコオオナマズ','イトウ'],
+  ['イワシ','サッパ','アジ','メジナ','サバ','クロダイ','カサゴ','ヒラメ','タコ'],
+  ['カツオ','サンマ','シイラ','カンパチ','ブリ','マカジキ','クロマグロ','バショウカジキ','ホホジロザメ'],
+  ['ホッキョクダラ','キュウリウオ','コオリカマス','ホッケ','ギンダラ','マダラ','アイスフィッシュ','オヒョウ','ニシオンデンザメ'],
+  ['シロウオ','ドウクツエビ','ブラインドフィッシュ','ケイブモーリー','ホラアナドジョウ','ドウクツナマズ','アラバマケイブフィッシュ','ホライモリ','ヨミノヌシ'],
+  ['チョウチンアンコウ','メンダコ','ラブカ','オニキンメ','リュウグウノツカイ','ミツクリザメ','ダイオウイカ','ダイオウグソクムシ','クラーケン'],
+];
+// 図鑑の枠（0〜8） -> 格（0〜4）
+const SLOT_GRADE = [0,0,1,1,2,2,3,3,4];
+// 格 -> その格の2枠（主は1枠）
+const GRADE_SLOTS = [[0,1],[2,3],[4,5],[6,7],[8]];
+
+// 3章 釣り場ごとの符号数の傾斜
+const SYM_COUNT = [
+  [2,3,4,5,6],[2,3,4,5,6],[2,3,4,5,7],[3,4,5,6,7],
+  [3,4,5,6,7],[3,4,5,6,8],[4,5,6,7,8],[4,5,6,7,8],
+];
+
+// 6章 譜面のプール（雑魚〜大物 26本）。・=単押し ー=押しっぱなし
+const POOL = [
+  '・・','・ー','ー・','ーー',
+  '・・ー','・ー・','ー・・','・ーー','ー・ー','ーー・',
+  '・・ー・','・ー・ー','ー・ー・','ー・・ー','・ーー・','ーー・・',
+  '・ー・ー・','ー・・ー・','・・ーー・','ー・ー・ーー','・・ー・・ー','ーー・・ーー',
+  '・ー・・ー・ー','ー・ー・・ー・','・・ー・ー・ー','ー・・ーー・・',
+];
+
+// 6章 主用8本（釣り場ごとに固定）
+const BOSS_CHART = [
+  '・ー・ー・ー','ー・・ー・ー','・・ーー・・ー','ー・ー・ー・ー',
+  '・ー・ー・ー・','ー・ー・・ー・ー','・・ー・ーー・・','ーー・ー・ーーー',
+];
+
+// 7章 道具（自分の竿は道具ではない）
+const TOOLS = [
+  {id:'bait', n:'餌',            cost:'baitCost', grow:'baitGrow', carry:'carryBait'},
+  {id:'line', n:'釣り糸',        cost:'lineCost', grow:'lineGrow', carry:'carryLine'},
+  {id:'reel', n:'リール',        cost:'reelCost', grow:'reelGrow', carry:'carryReel'},
+  {id:'cool', n:'クーラーボックス',cost:'coolCost', grow:'coolGrow', carry:'carryCool'},
+  {id:'rod',  n:'竿',            cost:'rodCost',  grow:'rodGrow',  carry:'carryRod'},
+];
+
+// 7章 パーク 29個
+const PERKS = [];
+(function(){
+  const mk = (id,kind,name,costKey,note)=>PERKS.push({id,kind,name,costKey,note});
+  const axes = [
+    ['Rod','竿'],['Bait','餌'],['Line','釣り糸'],['Reel','リール'],['Cool','クーラー'],
+  ];
+  const eff = {
+    Rod:['竿の値段の伸び率が下がる','開始時の自動の竿が1本増える','自動の竿の精度が上がる'],
+    Bait:['餌一段の効きが上がる','餌の値段の伸び率が下がる','餌一段の効きがさらに上がる'],
+    Line:['糸一段の効きが上がる','糸の値段の伸び率が下がる','逃したときに釣れている確率が上がる'],
+    Reel:['リール一段の効きが上がる','リールの値段の伸び率が下がる','完璧の判定幅が広がる'],
+    Cool:['クーラー一段の効きが上がる','クーラーの値段の伸び率が下がる','完璧の倍率が上がる'],
+  };
+  for (const [key,jp] of axes)
+    for (let s=1;s<=3;s++)
+      mk('pk'+key+s,'掛かる型',jp+' '+s+'段',`pk${key}${s}c`,eff[key][s-1]);
+  const opens = [
+    ['自動の竿が解放される','道具屋に「竿」が並ぶ'],
+    ['自動の竿の精度（1段目）','手動を上回らない'],
+    ['自動の竿の精度（2段目）','同上'],
+    ['売るのが自動になる',''],
+    ['道具を自動で買う','安いものから順に'],
+    ['自動でも超大物を捌ける','終盤'],
+    ['図鑑が解放される','集めることが目的になる'],
+    ['図鑑の埋まり具合で売値が上がる',''],
+    ['まだ釣っていない魚が掛かりやすくなる','図鑑を埋めに行ける'],
+    ['主が出やすくなる','予兆の確率が上がる'],
+  ];
+  opens.forEach((o,i)=>mk('opn'+(i+1),'開く型',o[0],'opn'+(i+1)+'c',o[1]));
+  const carr = [
+    ['道具を一つ持ち越す','枠が一つ。毎回選び直せる'],
+    ['持ち越し枠（1段目）','一つ → 二つ'],
+    ['持ち越し枠（2段目）','二つ → 三つ'],
+    ['開始時に所持金が残る','前の周の稼ぎの一部'],
+  ];
+  carr.forEach((o,i)=>mk('car'+(i+1),'持ち越し型',o[0],'car'+(i+1)+'c',o[1]));
+})();
+
+/* ---------------------------------------------------------------------------
+   状態
+   ------------------------------------------------------------------------- */
+const SAVE_KEY = 'fishing-inc-v1';
+
+function newRunRecord(no){
+  return {no, t0:performance.now(), sec:0, casts:0, earn:0, presGot:0,
+    byGrade:[0,0,0,0,0], perfect:0, soso:0, missed:0, bestCombo:0,
+    unlocked:[]};
+}
+function newState(){
+  return {
+    run:1, money:0, pres:0, place:0,
+    unlockedPlace:[true,false,false,false,false,false,false,false],
+    tools:{bait:0,line:0,reel:0,cool:0,rod:0},
+    perks:{},                       // id -> true
+    inf:{cool:0, rod:0},            // 無限段の段数（クーラー売値・竿本数）
+    dex:FISH.map(r=>r.map(()=>false)),
+    carrySel:[],                    // 次の周へ持ち越す道具のid
+    lastEarn:0,
+    totalSec:0, startedAt:Date.now(),
+    cleared:false, clearRun:0, clearSec:0,
+    rec:newRunRecord(1),
+    history:[],
+  };
+}
+let S = newState();
+
+// 画面の状態
+let scr = 'C';                   // 'A' | 'B' | 'C'
+let overlay = null;                 // null | 'dex' | 'rec'
+const rods = [];                    // 竿。0番が自分の竿
+let combo = 0, bestComboRun = 0;
+let omenCasts = 0, omenOn = false;
+let omenUp = 0, omenCool = 0;   // 予兆が立っている残り秒／次の予兆までの待ち
+let fx = [];                        // 演出
+let blockUntil = 0;                 // 手を止める演出の終わり
+let lastDigits = 0;
+let toast = [];
+let creel = 0;                      // 売る前の釣果（円）
+
+/* ---------------------------------------------------------------------------
+   派生値（すべてつまみから計算する）
+   ------------------------------------------------------------------------- */
+const has = id => !!S.perks[id];
+const pow = (b,e)=>Math.pow(b,e);
+
+function toolGrow(t){
+  if (t==='rod')  return has('pkRod1') ? T.pkRod1v : T.rodGrow;
+  if (t==='bait') return has('pkBait2')? T.pkBait2v: T.baitGrow;
+  if (t==='line') return has('pkLine2')? T.pkLine2v: T.lineGrow;
+  if (t==='reel') return has('pkReel2')? T.pkReel2v: T.reelGrow;
+  if (t==='cool') return has('pkCool2')? T.pkCool2v: T.coolGrow;
+  return 1;
+}
+function toolBase(t){
+  return T[{rod:'rodCost',bait:'baitCost',line:'lineCost',reel:'reelCost',cool:'coolCost'}[t]];
+}
+function toolPrice(t){ return toolBase(t) * pow(toolGrow(t), S.tools[t]); }
+
+function baitEff(){ return has('pkBait3') ? T.pkBait3v : has('pkBait1') ? T.pkBait1v : T.baitEff; }
+function lineEff(){ return has('pkLine1') ? T.pkLine1v : T.lineEff; }
+function reelEff(){ return has('pkReel1') ? T.pkReel1v : T.reelEff; }
+function coolEff(){ return has('pkCool1') ? T.pkCool1v : T.coolEff; }
+
+function deepMult(p){                                   // p は 0..7
+  return [T.deep12,T.deep12,T.deep34,T.deep34,T.deep56,T.deep56,T.deep78,T.deep78][p];
+}
+// 判定の幅（ミリ秒）。基準 × リール(複利) × 深場倍率、天井で頭打ち
+function windows(){
+  const r = pow(1+reelEff(), S.tools.reel), d = deepMult(S.place);
+  // 基準 × 深場倍率 × リール（複利）。天井は最後にかける
+  let hit = T.winHit  * d * r * (has('pkReel3') ? (1+T.pkReel3v) : 1);
+  let grz = T.winGraze * d * r;
+  hit = Math.min(hit, T.capHit);
+  grz = Math.min(grz, T.capGraze);
+  return {hit, graze: Math.max(grz, hit)};
+}
+function missRatio(){ return Math.min(T.missRatio0 * pow(1+lineEff(), S.tools.line), T.capMiss); }
+function waitRange(){
+  const f = pow(1-baitEff(), S.tools.bait);
+  const lo = Math.max(T.capWaitLo, T.waitLo*f);
+  const hi = Math.max(lo, T.waitHi*f);
+  return {lo,hi};
+}
+function dexCount(){ let c=0; for(const r of S.dex) for(const b of r) if(b) c++; return c; }
+function placeAllCaught(p){ return S.dex[p].every(Boolean); }
+// 無限段（10章10）。値段 = 初期値 × 伸び率^段数、効果 = 効果の伸び率^段数
+function infPrice(axis){
+  const n = (S.inf&&S.inf[axis])||0;
+  return axis==='cool' ? T.infCoolBase*pow(T.infCoolGrow,n) : T.infRodBase*pow(T.infRodGrow,n);
+}
+function infCoolMult(){ return pow(T.infCoolEff, (S.inf&&S.inf.cool)||0); }
+// 自動の竿の本数（10章10の式）。0段は0本、一段ごとに必ず1本は増える
+function infRodCount(){
+  const n = (S.inf&&S.inf.rod)||0;
+  if (n<=0) return 0;
+  return Math.max(n, Math.floor(pow(T.infRodEff, n)));
+}
+// 図鑑を揃えたか（クラーケン以外の71種）。揃うと恒久倍率が一段跳ねる
+function dexDone(){
+  for (let p=0;p<8;p++) for (let k=0;k<9;k++){
+    if (p===7 && k===8) continue;          // クラーケンは除く
+    if (!S.dex[p][k]) return false;
+  }
+  return true;
+}
+function sellMult(){
+  let m = pow(1+coolEff(), S.tools.cool) * infCoolMult();
+  if (dexDone()) m *= T.dexDoneMult;
+  if (has('opn8')) m *= (1 + T.opn8v*dexCount());
+  if (has('opn7') && placeAllCaught(S.place)) m *= (1 + T.dexAllBonus);
+  return m;
+}
+function perfectMult(){ return T.perfectMult + (has('pkCool3') ? T.pkCool3v : 0); }
+function comboMult(){
+  return Math.min(T.comboBase + T.comboStep*Math.max(0,combo-1), T.comboMax);
+}
+function autoAcc(){
+  let a = has('opn3') ? T.opn3v : has('opn2') ? T.opn2v : T.autoAcc0;
+  if (has('pkRod3')) a += T.pkRod3v;
+  return Math.min(a, 0.999);        // 手動を上回らない（100%未満）
+}
+function autoRodCount(){ return S.tools.rod + (has('pkRod2') ? T.pkRod2v : 0) + infRodCount(); }
+function carrySlots(){ return has('car3')?3 : has('car2')?2 : has('car1')?1 : 0; }
+function omenRate(){ return has('opn10') ? T.omenRate2 : T.omenRate; }
+function unitPrice(p,g){
+  const base=[T.price0,T.price1,T.price2,T.price3,T.price4][g];
+  const mul =[T.placeMul1,T.placeMul2,T.placeMul3,T.placeMul4,
+              T.placeMul5,T.placeMul6,T.placeMul7,T.placeMul8][p];
+  return base*mul;
+}
+function moveCost(p){ return [0,T.move2,T.move3,T.move4,T.move5,T.move6,T.move7,T.move8][p]; }
+function nextPlace(){ return S.place+1 <= 7 ? S.place+1 : -1; }
+function presGain(earn){ return Math.floor(pow(Math.max(0,earn)/T.presDiv, T.presExp)); }
+// その周の目標投数（10章11）。導入だけ短い
+function castTarget(no){ return no===1 ? T.castTarget1 : T.castTarget; }
+function bossReady(p){ return has('opn7') && S.dex[p].slice(0,8).every(Boolean); }
+
+/* 2章 桁の表記：日本語の桁は使わない。15桁までは全部数字、16桁から指数表記 */
+function yen(v){
+  v = Math.floor(v);
+  if (!isFinite(v)) return '∞円';
+  const s = Math.abs(v).toString();
+  if (s.length <= 15) return v.toLocaleString('en-US')+'円';
+  return v.toExponential(3).replace('e+','e')+'円';
+}
+function digitsOf(v){ return Math.max(1, Math.floor(v)<=0?1:Math.floor(v).toString().length); }
+
+/* ---------------------------------------------------------------------------
+   音（11章）。外部ファイルを使わず合成する
+   ------------------------------------------------------------------------- */
+let AC=null, master=null, bgmNode=null, omenNode=null;
+function audio(){
+  if (!AC){ AC = new (window.AudioContext||window.webkitAudioContext)();
+    master = AC.createGain(); master.gain.value = T.sndVol; master.connect(AC.destination); }
+  if (AC.state==='suspended') AC.resume();
+  master.gain.value = T.sndVol;
+  return AC;
+}
+function beep(freq, dur, type, vol){
+  if (!T.sndOn) return;
+  const ac = audio();
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = type||'square'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, ac.currentTime);
+  g.gain.linearRampToValueAtTime(vol==null?0.6:vol, ac.currentTime+0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+dur);
+  o.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime+dur+0.02);
+}
+function omenSound(on){
+  if (!T.sndOn){ on=false; }
+  if (on && !omenNode){
+    const ac=audio(); const o=ac.createOscillator(), g=ac.createGain();
+    o.type='sine'; o.frequency.value=70; g.gain.value=0.25;   // 低くて持続する音
+    o.connect(g); g.connect(master); o.start(); omenNode={o,g};
+  } else if(!on && omenNode){ omenNode.o.stop(); omenNode=null; }
+}
+let bgmTimer=null, bgmStep=0;
+const BGM_SCALE = [[0,2,4,7,9],[0,3,5,7,10],[0,2,5,7,9],[0,4,7,9,11],
+                   [0,1,5,7,8],[0,2,3,7,8],[0,1,3,6,8],[0,2,3,5,8]];
+function bgmStart(){
+  bgmStop();
+  if (!T.bgmOn || !T.sndOn) return;
+  const sc = BGM_SCALE[S.place], root = 110*Math.pow(2,(S.place%4)/12);
+  bgmTimer = setInterval(()=>{
+    if (!T.bgmOn || !T.sndOn) return;
+    const n = sc[(bgmStep*3)%sc.length] + 12*((bgmStep>>2)%2);
+    beep(root*Math.pow(2,n/12), 0.28, 'triangle', 0.10);
+    bgmStep++;
+  }, 420);
+}
+function bgmStop(){ if(bgmTimer){ clearInterval(bgmTimer); bgmTimer=null; } }
+
+/* ---------------------------------------------------------------------------
+   譜面
+   ------------------------------------------------------------------------- */
+function chartFor(place, grade){
+  if (grade===4) return BOSS_CHART[place];
+  const need = SYM_COUNT[place][grade];
+  const cand = POOL.filter(c=>c.length===need);
+  return cand[(Math.random()*cand.length)|0];
+}
+// 枠の拍数は導出値。上限8符号 × 長音2拍 ＝ 16拍（3章）
+function frameBeats(){ return T.maxSyms * T.dashBeats; }
+// 帯の全体（カウントイン込み）の秒数。符号数によらず一定
+function bandSec(){ return T.beat * (T.countInBeats + frameBeats()); }
+
+// 譜面 -> 各符号の {start, dur, long}（秒）。16拍の格子に置き、余り拍を間隔に配る
+function timeline(chart, fixed){
+  const b = T.beat, n = chart.length;
+  const vals = [...chart].map(ch => ch==='ー' ? T.dashBeats : T.dotBeats);
+  const used = vals.reduce((a,x)=>a+x, 0);
+  const slack = Math.max(0, frameBeats() - used);   // 余り拍
+  const slots = n + 1;                              // 先頭・符号のあいだ・末尾
+  const gaps = new Array(slots).fill(0);
+  if (fixed){
+    // 超大物：均等に配り、割り切れないぶんは先頭から1拍ずつ（毎回同じ並びになる）
+    const q = Math.floor(slack/slots), r = slack % slots;
+    for (let i=0;i<slots;i++) gaps[i] = q + (i<r ? 1 : 0);
+  } else {
+    // それ以外：1拍ずつランダムに配る。同じ場所に何拍でも置ける。0拍でよい
+    for (let k=0;k<slack;k++) gaps[(Math.random()*slots)|0]++;
+  }
+  const out=[]; let t = b*(T.countInBeats + gaps[0]);
+  for (let i=0;i<n;i++){
+    out.push({start:t, dur:b*vals[i], long: chart[i]==='ー', ch: chart[i]});
+    t += b*vals[i] + b*gaps[i+1];
+  }
+  return {syms:out, total: bandSec()};
+}
+// 完璧で許される取りこぼしの個数（符号数ごと。割合ではない）
+function slipAllow(n){
+  return [0,0,T.slip2,T.slip3,T.slip4,T.slip5,T.slip6,T.slip7,T.slip8][Math.min(8,n)] || 0;
+}
+
+/* ---------------------------------------------------------------------------
+   竿。0番が自分の竿（手動・最後まで一本）。1番以降が自動の竿
+   ------------------------------------------------------------------------- */
+function newRod(auto){
+  return {auto, phase:'idle', t:0, wait:0, grade:0, chart:'', tl:null,
+          idx:0, res:[], holding:false, pressT:-1, omen:false, popT:0, last:null};
+}
+function syncRods(){
+  const want = 1 + (scr==='A' ? autoRodCount() : 0);
+  while (rods.length < want) rods.push(newRod(rods.length>0));
+  while (rods.length > want) rods.pop();
+  if (rods.length) rods[0].auto = false;
+}
+function pickGrade(){
+  const w = [T.rate0,T.rate1,T.rate2,T.rate3].slice();
+  if (has('opn9')) for (let g=0;g<4;g++) if (!GRADE_SLOTS[g].every(k=>S.dex[S.place][k])) w[g] *= T.opn9v;
+  const sum = w.reduce((a,b)=>a+b,0);
+  let r = Math.random()*sum;
+  for (let g=0;g<4;g++){ r -= w[g]; if (r<=0) return g; }
+  return 0;
+}
+function rollWait(){
+  const {lo,hi} = waitRange();
+  const u = Math.pow(Math.random(), Math.max(0.0001,T.waitSkew));   // 短いほうに寄せる
+  return lo + (hi-lo)*u;
+}
+function castRod(r){
+  r.phase='wait'; r.t=0; r.res=[]; r.idx=0; r.holding=false; r.pressT=-1; r.last=null;
+  // 予兆は「時間」で来る（4章：竿を入れていなくても出る）。ここでは
+  // 予兆が立っているかどうかだけを見る。自動の竿は予兆に関係しない
+  r.omen = false;
+  if (!r.auto && omenUp > 0 && bossReady(S.place)){
+    r.omen = true; omenUp = 0; omenCool = T.omenGap;
+    r.wait = T.omenWaitLo + Math.random()*(T.omenWaitHi-T.omenWaitLo);
+    omenSound(false);
+  } else if (r.auto && has('opn6') && bossReady(S.place) && Math.random() < T.autoBossRate){
+    r.omen = true;
+    r.wait = T.omenWaitLo + Math.random()*(T.omenWaitHi-T.omenWaitLo);
+  }
+  if (!r.omen) r.wait = rollWait();
+  r.grade = r.omen ? 4 : pickGrade();
+  r.chart = chartFor(S.place, r.grade);
+  r.tl = timeline(r.chart);
+  S.rec.casts++;
+}
+function startChart(r){
+  r.phase='play'; r.t = 0; r.idx=0; r.res=[]; r.popT=0; r.bandT0=null; r.countIn=-1; r.extra=0;
+  if (!r.auto) omenSound(false);
+  if (r.auto) autoPlay(r);
+}
+// 自動の竿は「そこそこ」しか出せない。精度の確率でそこそこ、外れると逃す
+function autoPlay(r){
+  const ok = Math.random() < autoAcc();
+  r.autoResult = ok ? 'soso' : 'miss';
+}
+function judgeSymbol(r, i, dt, kindOk){
+  const w = windows();
+  const a = Math.abs(dt)*1000;
+  let g = (a<=w.hit && kindOk) ? 'hit' : (a<=w.graze && kindOk) ? 'graze' : 'miss';
+  r.res[i] = g;
+}
+function finishChart(r){
+  let result;
+  if (r.auto){
+    result = r.autoResult==='soso' ? 'soso' : 'miss';
+  } else {
+    const n = r.tl.syms.length;
+    for (let i=0;i<n;i++) if (!r.res[i]) r.res[i]='miss';
+    const extra = r.extra||0;                             // 余計に押した回数も外しに数える
+    const mis = r.res.filter(x=>x==='miss').length + extra;
+    const slip = n - r.res.filter(x=>x==='hit').length + extra;   // 取りこぼし＝当たり以外
+    if (mis/n > missRatio())          result='miss';      // 境界は「超える」。ちょうどは許す
+    else if (slip <= slipAllow(n))    result='perfect';
+    else                              result='soso';
+  }
+  // 糸パーク3段：逃したときに稀に釣れている
+  let saved=false;
+  if (result==='miss' && has('pkLine3') && Math.random() < T.pkLine3v){ result='soso'; saved=true; }
+  applyResult(r, result, saved);
+  r.phase='idle'; r.t=0;
+}
+function applyResult(r, result, saved){
+  const g = r.grade;
+  if (result==='miss'){
+    if (!r.auto){ combo = 0; S.rec.missed++; beep(140,0.18,'sawtooth',0.4); }
+    else S.rec.missed++;
+    r.last = {result, grade:g, money:0, saved};
+    fxAdd('miss', g, r);
+    if (g===4) { fxAdd('hugeMiss', g, r); beep(90,0.5,'sawtooth',0.5); }
+    return;
+  }
+  if (!r.auto){
+    if (result==='perfect'){ combo++; if (combo>bestComboRun) bestComboRun=combo; S.rec.perfect++; }
+    else S.rec.soso++;
+  } else {
+    S.rec.soso++;
+  }
+  let money = unitPrice(S.place, g) * sellMult();
+  if (result==='perfect') money *= perfectMult() * comboMult();
+  money = Math.floor(money);
+
+  const before = digitsOf(S.money + creel);
+  if (has('opn4')) S.money += money; else creel += money;
+  const after = digitsOf(S.money + creel);
+
+  S.rec.earn += money;
+  S.rec.byGrade[g]++;
+  const slots = GRADE_SLOTS[g];
+  const slot = slots[(Math.random()*slots.length)|0];
+  if (!S.dex[S.place][slot]){ S.dex[S.place][slot] = true; note('図鑑：'+FISH[S.place][slot]+' を記録'); }
+  r.last = {result, grade:g, money, saved};
+
+  fxAdd(result==='perfect'?'perfect':'soso', g, r);
+  if (g===4){ fxAdd('huge', g, r); beep(880,0.5,'square',0.8); }
+  else {
+    const f = [520,620,740,900][g] || 520;
+    beep(result==='perfect'? f*1.5 : f, result==='perfect'?0.16:0.10,
+         result==='perfect'?'square':'triangle', result==='perfect'?0.7:0.4);
+    if (result==='perfect' && combo>1) beep(f*1.5*Math.pow(2,Math.min(combo,12)/24),0.10,'square',0.4);
+  }
+  if (after>before){ fxAdd('digit', g, r); beep(1400,0.12,'sine',0.5); }
+  save();
+}
+function sellAll(){
+  if (creel<=0) return;
+  S.money += creel; creel = 0; save();
+}
+
+/* ---------------------------------------------------------------------------
+   演出（8章・13章）。「手を止める」ものだけ入力を止める
+   ------------------------------------------------------------------------- */
+function fxAdd(kind, grade, r){
+  const now = performance.now()/1000;
+  let dur=0, stop=false, text='';
+  if (kind==='soso'||kind==='perfect'||kind==='miss'){
+    dur = grade>=3 ? T.fxCatchBig : T.fxCatchSmall;
+  } else if (kind==='digit'){ dur=T.fxDigit; text='桁'; }
+  else if (kind==='place'){ dur=T.fxPlace; stop=true; text=PLACES[S.place].n; }
+  else if (kind==='huge'){ dur=T.fxHuge; stop=true; text=FISH[S.place][4]; }
+  else if (kind==='hugeMiss'){ dur=T.fxHuge; stop=true; text='逃した'; }
+  else if (kind==='auto'){ dur=T.fxAuto; stop=true; text='自動化'; }
+  else if (kind==='prestige'){ dur=T.fxPrestige; stop=true; text='転生'; }
+  fx.push({kind, grade, until:now+dur, dur, text, rod:r||null, born:now});
+  if (stop) blockUntil = Math.max(blockUntil, now+dur);
+}
+function note(s){ toast.push({s, until:performance.now()/1000+2.5}); }
+
+/* ---------------------------------------------------------------------------
+   買う（道具屋）・釣り場・転生
+   ------------------------------------------------------------------------- */
+function shopList(){
+  const out=[];
+  for (const t of TOOLS){
+    if (t.id==='rod' && !has('opn1')) continue;
+    out.push({kind:'tool', id:t.id, name:t.n, price:toolPrice(t.id), lv:S.tools[t.id]});
+  }
+  const np = nextPlace();
+  if (np>=0 && !S.unlockedPlace[np])
+    out.push({kind:'move', id:np, name:PLACES[np].move, price:moveCost(np), lv:0});
+  return out;
+}
+function buy(item){
+  if (S.money < item.price) return false;
+  S.money -= item.price;
+  if (item.kind==='tool'){
+    S.tools[item.id]++;
+    if (item.id==='rod'){ syncRods(); }
+  } else {
+    S.unlockedPlace[item.id] = true;
+    note(PLACES[item.id].n+' を開けた');
+    S.rec.unlocked.push('釣り場:'+PLACES[item.id].n);
+  }
+  save();
+  return true;
+}
+function autoBuy(){                    // 開く型5：安いものから順に
+  if (!has('opn5')) return;
+  const list = shopList().filter(i=>i.kind==='tool').sort((a,b)=>a.price-b.price);
+  for (const it of list) if (S.money>=it.price){ buy(it); return; }
+}
+function gotoPlace(p){
+  if (!S.unlockedPlace[p]) return;
+  S.place = p; omenCasts = 0; omenUp = 0; omenCool = 0; omenSound(false);
+  for (const r of rods){ r.phase='idle'; r.t=0; }
+  fxAdd('place');
+  bgmStart();
+}
+function buyPerk(pk){
+  if (has(pk.id)) return;
+  const c = T[pk.costKey];
+  if (S.pres < c) return;
+  S.pres -= c; S.perks[pk.id] = true;
+  S.rec.unlocked.push('パーク:'+pk.name);
+  if (['opn1','opn2','opn3','opn4','opn5','opn6'].includes(pk.id)){
+    fxAdd('auto'); S.rec.unlocked.push('自動化:'+pk.name);
+  }
+  syncRods(); save();
+}
+function endRun(){                     // 画面Bへ
+  sellAll();
+  S.rec.sec = (performance.now()-S.rec.t0)/1000;
+  S.rec.bestCombo = bestComboRun;
+  S.rec.presGot = presGain(S.rec.earn);
+  scr='B'; overlay=null; omenSound(false); bgmStop();
+}
+function doPrestige(){
+  const got = S.rec.presGot;
+  S.pres += got;
+  S.lastEarn = S.rec.earn;
+  S.history.push(JSON.parse(JSON.stringify(S.rec)));
+  S.totalSec += S.rec.sec;
+
+  // 持ち越し（7章）。選んだ道具の段数を割合で持ち越す
+  const keep = {bait:0,line:0,reel:0,cool:0,rod:0};
+  const sel = S.carrySel.slice(0, carrySlots());
+  for (const id of sel){
+    const t = TOOLS.find(x=>x.id===id);
+    keep[id] = Math.floor(S.tools[id] * T[t.carry]);
+  }
+  S.tools = keep;
+  S.money = has('car4') ? Math.floor(S.lastEarn * T.car4v) : 0;
+  creel = 0; combo = 0; bestComboRun = 0; omenCasts = 0; omenUp = 0; omenCool = 0;
+  S.run++; S.rec = newRunRecord(S.run);
+  fxAdd('prestige');
+  scr='C'; syncRods(); save();
+}
+function checkClear(){
+  if (!S.cleared && S.dex[7][8]){
+    S.cleared = true; S.clearRun = S.run;
+    S.clearSec = S.totalSec + (performance.now()-S.rec.t0)/1000;
+    note('クラーケンを釣った。'+S.clearRun+'周目／'+fmtSec(S.clearSec));
+    save();
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   セーブ（10.5章）
+   ------------------------------------------------------------------------- */
+function snapshot(){
+  return {v:1, S:{...S, rec:{...S.rec, t0:0}}, T:{...T}, creel, combo, bestComboRun,
+          place:S.place, scr, runElapsed:(performance.now()-S.rec.t0)/1000};
+}
+function save(){
+  if (!T.autoSave) return;
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(snapshot())); }catch(e){}
+}
+function load(obj){
+  try{
+    const d = obj || JSON.parse(localStorage.getItem(SAVE_KEY)||'null');
+    if (!d || !d.S) return false;
+    Object.assign(T, d.T||{});
+    S = d.S; S.rec = S.rec || newRunRecord(S.run||1);
+    S.rec.t0 = performance.now() - (d.runElapsed||0)*1000;
+    creel = d.creel||0; combo = d.combo||0; bestComboRun = d.bestComboRun||0;
+    scr = d.scr==='B' ? 'C' : (d.scr||'C');
+    syncRods(); return true;
+  }catch(e){ return false; }
+}
+function exportStr(){ return btoa(unescape(encodeURIComponent(JSON.stringify(snapshot())))); }
+function importStr(s){
+  try{ return load(JSON.parse(decodeURIComponent(escape(atob(s.trim()))))); }
+  catch(e){ return false; }
+}
+function fmtSec(s){
+  s = Math.floor(s); const h=(s/3600)|0, m=((s%3600)/60)|0, x=s%60;
+  return (h?h+'時間':'')+(h||m?m+'分':'')+x+'秒';
+}
+
+/* ---------------------------------------------------------------------------
+   入力（3章・9章）。入力は二種類だけ：単押しと押しっぱなし
+   ------------------------------------------------------------------------- */
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let hotspots = [];                      // {x,y,w,h,fn}
+let blocked = ()=> performance.now()/1000 < blockUntil;
+
+function press(down){
+  if (blocked()) return;
+  const r = rods[0]; if (!r) return;
+  if (scr!=='A' || overlay) return;
+  if (r.phase==='idle'){ if (down) castRod(r); return; }
+  if (r.phase!=='play') return;
+  const t = r.t;
+  if (down){
+    r.holding = true; r.pressT = t;
+    // 押した時刻を「一番近い符号」に割り当てる（3章）。
+    // 判定の幅が隣と重なっても、中点で切れば曖昧な区間は生まれない
+    let best=-1, bestD=Infinity;
+    for (let i=0;i<r.tl.syms.length;i++){
+      if (r.res[i]) continue;                       // すでに決まった符号は対象外
+      const d = Math.abs(t - r.tl.syms[i].start);
+      if (d < bestD){ bestD = d; best = i; }
+    }
+    if (best < 0){ r.extra = (r.extra||0)+1; return; }   // 余計な押し
+    r.aim = best;
+  } else {
+    if (!r.holding) return;
+    r.holding = false;
+    const i = r.aim; const s = r.tl.syms[i];
+    if (s==null || r.res[i]) { r.pressT=-1; return; }
+    const held = t - r.pressT;
+    // 長音は押し始めで判定する。ただし長さの8割より早く離したら外し
+    const kindOk = s.long ? (held >= s.dur*T.holdKeep) : true;
+    judgeSymbol(r, i, r.pressT - s.start, kindOk);
+    r.idx = Math.max(r.idx, i+1);
+    r.pressT = -1;
+  }
+}
+window.addEventListener('keydown', e=>{
+  if (e.repeat) return;
+  if (e.code==='Space'||e.code==='KeyZ'||e.code==='Enter'){ e.preventDefault(); press(true); }
+});
+window.addEventListener('keyup', e=>{
+  if (e.code==='Space'||e.code==='KeyZ'||e.code==='Enter'){ e.preventDefault(); press(false); }
+});
+function cvPos(ev){
+  const b = cv.getBoundingClientRect();
+  return {x:(ev.clientX-b.left)*(cv.width/b.width), y:(ev.clientY-b.top)*(cv.height/b.height)};
+}
+cv.addEventListener('mousedown', ev=>{
+  const p = cvPos(ev);
+  for (let i=hotspots.length-1;i>=0;i--){
+    const h = hotspots[i];
+    if (p.x>=h.x&&p.x<=h.x+h.w&&p.y>=h.y&&p.y<=h.y+h.h){ h.fn(); return; }
+  }
+  press(true);
+});
+window.addEventListener('mouseup', ()=>press(false));
+cv.addEventListener('contextmenu', e=>e.preventDefault());
+
+/* ---------------------------------------------------------------------------
+   更新
+   ------------------------------------------------------------------------- */
+let last = performance.now();
+function update(dt){
+  const now = performance.now()/1000;
+  fx = fx.filter(f=>f.until>now);
+  toast = toast.filter(t=>t.until>now);
+  if (blocked()) return;
+  if (scr!=='A' || overlay) return;
+
+  autoBuy();
+  syncRods();
+
+  // 予兆は時間で来る（4章）。竿を入れていなくても立つ
+  if (omenCool > 0) omenCool -= dt;
+  if (omenUp > 0){ omenUp -= dt; if (omenUp <= 0) omenSound(false); }
+  else if (omenCool <= 0 && bossReady(S.place) && Math.random() < omenRate()*dt){
+    omenUp = T.omenHold; omenSound(true);
+  }
+
+  for (const r of rods){
+    if (r.phase==='idle'){
+      // 自分の竿は押すまで振らない（4章）。自動の竿だけが勝手に投げ直す
+      if (r.auto) castRod(r);
+      continue;
+    }
+    r.t += dt;
+    if (r.phase==='wait'){
+      if (r.t >= r.wait) startChart(r);
+    } else if (r.phase==='play'){
+      // 過ぎた符号を外しにする
+      const w = windows();
+      for (let i=0;i<r.tl.syms.length;i++){
+        const s = r.tl.syms[i];
+        if (!r.res[i] && r.t > s.start + w.graze/1000 && !(r.holding&&r.aim===i)) r.res[i]='miss';
+      }
+      if (r.t > r.tl.total + w.graze/1000){
+        if (r.holding){ r.holding=false; }
+        finishChart(r);
+        checkClear();
+      }
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   描画
+   ------------------------------------------------------------------------- */
+function fitCanvas(){ cv.width = T.scrW; cv.height = T.scrH; }
+function box(x,y,w,h,fill,stroke){
+  ctx.fillStyle=fill; ctx.fillRect(x,y,w,h);
+  if (stroke){ ctx.strokeStyle=stroke; ctx.lineWidth=1; ctx.strokeRect(x+.5,y+.5,w-1,h-1); }
+}
+function txt(s,x,y,size,color,align){
+  ctx.fillStyle=color||'#e8eef2'; ctx.textAlign=align||'left'; ctx.textBaseline='top';
+  ctx.font = (size||12)+'px "Hiragino Kaku Gothic ProN","Noto Sans JP",monospace';
+  ctx.fillText(s,x,y);
+}
+function hs(x,y,w,h,fn){ hotspots.push({x,y,w,h,fn}); }
+
+function draw(){
+  hotspots = [];
+  ctx.clearRect(0,0,cv.width,cv.height);
+  if (scr==='A') drawA();
+  else if (scr==='B') drawB();
+  else drawC();
+  if (overlay==='dex') drawDex();
+  if (overlay==='rec') drawRecOverlay();
+  drawFxTop();
+  drawToast();
+}
+
+const TOPH = 22;
+function drawTop(){
+  box(0,0,cv.width,TOPH,'#0a1216','#2b3b46');
+  txt('所持金 '+yen(S.money+creel), 6, 5, 12, '#e8c05a');
+  txt('×'+combo+'連続', 210, 5, 12, combo>0?'#7fd6a0':'#5b6d78');
+  // ボタン
+  let bx = cv.width-6;
+  const btn=(label,fn,on)=>{
+    ctx.font='11px monospace'; const w = ctx.measureText(label).width+12;
+    bx -= w+4;
+    box(bx,3,w,16, on?'#27404d':'#16232a','#2b3b46');
+    txt(label,bx+6,5,11,on?'#e8eef2':'#8fa3b0');
+    hs(bx,3,w,16,fn);
+  };
+  btn('記録',()=>{overlay = overlay==='rec'?null:'rec';}, overlay==='rec');
+  if (scr==='A') btn('転生',()=>endRun(), false);
+  if (has('opn7')) btn('図鑑',()=>{overlay = overlay==='dex'?null:'dex';}, overlay==='dex');
+  if (scr==='A') btn('釣り場',()=>{scr='C';}, false);
+  if (!has('opn4') && scr==='A' && creel>0) btn('売る '+yen(creel),()=>sellAll(),true);
+}
+
+function drawA(){
+  const P = PLACES[S.place];
+  const shopW = Math.floor(cv.width*0.28);
+  const bodyY = TOPH, bodyH = cv.height-TOPH;
+  const skyH = Math.floor(bodyH*0.34);
+  // 空と地上
+  box(0,bodyY,cv.width-shopW,skyH,P.sky);
+  box(0,bodyY+skyH,cv.width-shopW,6,P.land);
+  // 水面
+  box(0,bodyY+skyH+6,cv.width-shopW,bodyH-skyH-6,P.water);
+  // 予兆で水面が金がかる
+  const omen = rods.some(r=>r.omen && r.phase!=='idle');
+  if (omen){ ctx.globalAlpha=0.30; box(0,bodyY+skyH+6,cv.width-shopW,bodyH-skyH-6,'#e8c05a'); ctx.globalAlpha=1; }
+
+  // 竿・糸・浮き
+  const n = Math.min(rods.length, T.rodsDrawn);
+  const usable = cv.width-shopW;
+  for (let i=0;i<n;i++){
+    const r = rods[i];
+    const x = Math.floor(usable*(i+1)/(n+1));
+    ctx.fillStyle = i===0 ? '#e8c05a' : '#9fb6c4';
+    ctx.fillRect(x-Math.floor(T.rodW/2), bodyY, T.rodW, skyH*0.7);           // 竿の先
+    ctx.fillStyle = '#cfd8dd';
+    ctx.fillRect(x, bodyY+skyH*0.7, 1, skyH*0.3+10);                          // 糸
+    // 浮き
+    const wob = (r.phase==='wait' && r.t > r.wait-0.6) ? Math.sin(performance.now()/60)*3 : 0;
+    const fy = bodyY+skyH+8+wob;
+    ctx.fillStyle = i===0 ? '#ff6b5a' : '#d8d8d8';
+    ctx.fillRect(x-T.floatSize/2, fy, T.floatSize, T.floatSize);
+    if (r.phase==='idle' && i===0) txt('押す',x-12,fy+14,10,'#e8eef2');
+  }
+  if (rods.length > T.rodsDrawn)
+    txt('＋'+(rods.length-T.rodsDrawn)+'本', 6, bodyY+skyH+16, 11, '#e8eef2');
+
+  // 魚影（情報を持つもの）
+  for (const r of rods){
+    if (r.phase!=='wait') continue;
+    const near = r.t > r.wait*0.65;
+    if (!near) continue;
+    const sz = r.omen ? T.fishSmall*2.2 : T.fishSmall*(0.6+r.grade*0.25);
+    const x = ((performance.now()/16 + r.wait*97)%(usable+60))-30;
+    ctx.globalAlpha=0.35; ctx.fillStyle='#0b1a20';
+    ctx.fillRect(x, bodyY+skyH+30+ (r.grade*6), sz, sz*0.45); ctx.globalAlpha=1;
+  }
+
+  // 道具屋（右）
+  drawShop(cv.width-shopW, bodyY, shopW, bodyH);
+  // 譜面の帯
+  drawBand();
+  drawTop();
+  drawFxA();
+}
+
+function drawShop(x,y,w,h){
+  box(x,y,w,h,'#0f191f','#2b3b46');
+  txt('道具屋',x+6,y+4,12,'#9fb6c4');
+  let yy = y+22;
+  for (const it of shopList()){
+    const can = S.money>=it.price;
+    box(x+4,yy,w-8,26, can?'#1a2c35':'#141d23','#2b3b46');
+    txt(it.name + (it.kind==='tool'? ' '+it.lv : ''), x+8, yy+2, 11, can?'#e8eef2':'#5b6d78');
+    txt(yen(it.price), x+w-8, yy+13, 10, can?'#e8c05a':'#5b6d78','right');
+    if (can) hs(x+4,yy,w-8,26, ()=>buy(it));
+    yy += 29;
+    if (yy > y+h-30) break;
+  }
+  txt('転生でもらえる量 '+presGain(S.rec.earn), x+6, y+h-16, 10, '#8fa3b0');
+}
+
+function drawBand(){
+  const r = rods[0];
+  if (!r || r.phase!=='play') return;
+  const now = performance.now()/1000;
+  if (r.bandT0==null) r.bandT0=now;
+  const grow = Math.min(1, (now - r.bandT0)/Math.max(0.001,T.bandPop));
+  const h = Math.floor(T.bandH*grow);
+  const y = Math.floor((cv.height-T.bandH)/2);
+  box(0,y,cv.width,h,'#0a0f13','#3a4d59');            // 全釣り場で同じ色
+  if (grow<1) return;
+  const syms = r.tl.syms;
+  // 帯は20拍ぶんの固定幅（カウントイン4拍 ＋ 譜面の枠16拍）。符号数によらず同じ（9章）
+  const beats = T.countInBeats + frameBeats();
+  const bw = beats * T.beatW;
+  const x0 = Math.floor((cv.width - bw)/2);
+  const px = t => x0 + (t / T.beat) * T.beatW;        // 秒 -> 画面のx
+  // カウントインの区間（符号を置かない。ここで拍を掴む）
+  box(x0, y+8, T.countInBeats*T.beatW, T.bandH-16, '#0d151b');
+  for (let k=1;k<=T.countInBeats;k++)
+    box(x0 + k*T.beatW - 1, y+T.bandH/2-2, 2, 4, '#3a4d59');
+  // 符号（音価の長さぶんの幅で置く）
+  for (let i=0;i<syms.length;i++){
+    const sy = syms[i];
+    const x = px(sy.start), w = (sy.dur / T.beat) * T.beatW;
+    const res = r.res[i];
+    const col = res==='hit' ? '#7fd6a0' : res==='graze' ? '#e8c05a' : res==='miss' ? '#e0736b' : '#e8eef2';
+    if (sy.long){ box(x, y+T.bandH/2-4, Math.max(6,w-3), 8, col); }
+    else        { box(x, y+T.bandH/2-4, 8, 8, col); }
+  }
+  // 光の線が左から右へ。カウントインのあいだは鈍い色
+  const lx = px(r.t);
+  ctx.fillStyle = (r.t < T.beat*T.countInBeats) ? '#5b6d78' : '#ffffff';
+  ctx.fillRect(Math.floor(lx), y+8, 2, T.bandH-16);
+  // 連続の演出
+  if (combo>0) txt('×'+combo+'!', 12, y+T.bandH/2-10, 16, '#7fd6a0');
+  txt(GRADES[r.grade]+'（'+syms.length+'符号）', cv.width-12, y+6, 11, '#8fa3b0','right');
+}
+
+function drawFxA(){
+  const now = performance.now()/1000;
+  for (const f of fx){
+    if (f.kind==='perfect'||f.kind==='soso'||f.kind==='miss'){
+      const a = (f.until-now)/f.dur;
+      ctx.globalAlpha = Math.max(0,Math.min(1,a));
+      const col = f.kind==='perfect'?'#7fd6a0':f.kind==='miss'?'#e0736b':'#e8eef2';
+      const label = (f.kind==='miss'?'逃した ':'')+FISH[S.place][f.grade]
+                  + (f.rod&&f.rod.last&&f.rod.last.money?' '+yen(f.rod.last.money):'');
+      txt(label, cv.width/2, cv.height*0.62, f.grade>=3?16:12, col, 'center');
+      if (f.kind==='perfect'){ ctx.globalAlpha=a*0.25; box(0,TOPH,cv.width,cv.height-TOPH,'#7fd6a0'); }
+      if (f.grade===2){ ctx.globalAlpha=a*0.4; ctx.strokeStyle='#fff'; ctx.strokeRect(1,TOPH+1,cv.width-2,cv.height-TOPH-2); }
+      ctx.globalAlpha=1;
+    }
+    if (f.kind==='digit'){
+      const a=(f.until-now)/f.dur; ctx.globalAlpha=a;
+      txt('円', cv.width/2, cv.height*0.3, 40, '#e8c05a','center'); ctx.globalAlpha=1;
+    }
+  }
+}
+function drawFxTop(){
+  const now = performance.now()/1000;
+  for (const f of fx){
+    if (f.kind==='huge'||f.kind==='hugeMiss'){
+      const a = (f.until-now)/f.dur;
+      ctx.globalAlpha=Math.min(1,a*1.5);
+      box(0,0,cv.width,cv.height, f.kind==='huge'?'#0a0f13':'#000');
+      const sz = Math.floor(cv.width*T.fishHugeFrac);
+      ctx.globalAlpha=1;
+      box((cv.width-sz)/2, cv.height/2-sz*0.18, sz, sz*0.36,
+          f.kind==='huge'?'#e8c05a':'#3a2b28');
+      txt(f.text, cv.width/2, cv.height*0.18, 22, '#fff','center');
+      if (f.kind==='huge' && f.rod && f.rod.last)
+        txt(yen(f.rod.last.money), cv.width/2, cv.height*0.76, 16, '#e8c05a','center');
+      ctx.globalAlpha=1;
+    }
+    if (f.kind==='place'||f.kind==='auto'||f.kind==='prestige'){
+      const a=(f.until-now)/f.dur; ctx.globalAlpha=Math.min(1,a);
+      box(0,0,cv.width,cv.height, f.kind==='prestige'?'#ffffff':'#0a0f13');
+      txt(f.text, cv.width/2, cv.height/2-12, 24,
+          f.kind==='prestige'?'#0d1418':'#e8eef2','center');
+      ctx.globalAlpha=1;
+    }
+  }
+}
+function drawToast(){
+  const now=performance.now()/1000; let y=cv.height-18;
+  for (const t of toast){ txt(t.s, 6, y, 11, '#9fb6c4'); y-=14; }
+}
+
+/* --- 画面B：転生 --------------------------------------------------------- */
+let perkScroll = 0;
+function drawB(){
+  box(0,0,cv.width,cv.height,'#0d1418');
+  drawTop();
+  txt('転生', 12, TOPH+6, 18, '#e8c05a');
+  txt('今回の釣果 '+yen(S.rec.earn), 12, TOPH+30, 13, '#e8eef2');
+  txt('もらえる量 '+S.rec.presGot+'（持っている '+S.pres+'）', 12, TOPH+48, 13, '#7fd6a0');
+  const nx = (S.pres+S.rec.presGot)/Math.max(1,S.pres);
+  txt('次の周の予告：転生通貨が '+S.pres+' → '+(S.pres+S.rec.presGot)
+      +'（×'+nx.toFixed(2)+'）', 12, TOPH+66, 12, '#9fb6c4');
+
+  // 持ち越しの選択
+  const slots = carrySlots();
+  txt('持ち越し（'+S.carrySel.length+'／'+slots+'枠）', 12, TOPH+88, 12, '#9fb6c4');
+  let x=12;
+  ctx.font='11px monospace';
+  for (const t of TOOLS){
+    const on = S.carrySel.includes(t.id);
+    const w = Math.ceil(ctx.measureText(t.n+' '+S.tools[t.id]).width)+14;
+    box(x, TOPH+104, w, 20, on?'#27404d':'#16232a','#2b3b46');
+    txt(t.n+' '+S.tools[t.id], x+5, TOPH+107, 11, slots?'#e8eef2':'#5b6d78');
+    if (slots) hs(x, TOPH+104, w, 20, ()=>{
+      const i=S.carrySel.indexOf(t.id);
+      if (i>=0) S.carrySel.splice(i,1);
+      else if (S.carrySel.length<slots) S.carrySel.push(t.id);
+    });
+    x += w+4;
+  }
+
+  // パークの一覧
+  const listY = TOPH+132, listH = cv.height-listY-30;
+  box(8, listY, cv.width-16, listH, '#0f191f', '#2b3b46');
+  const rowH = 22, perCol = Math.floor((listH-6)/rowH);
+  const cols = 2, colW = (cv.width-24)/cols;
+  const shown = PERKS.slice(perkScroll, perkScroll+perCol*cols);
+  shown.forEach((pk,i)=>{
+    const c = Math.floor(i/perCol), rI = i%perCol;
+    const px = 12 + c*colW, py = listY+4 + rI*rowH;
+    const owned = has(pk.id), cost = T[pk.costKey], can = !owned && S.pres>=cost;
+    box(px, py, colW-8, rowH-2, owned?'#1c3a2c':can?'#1a2c35':'#141d23','#2b3b46');
+    txt((owned?'✓ ':'')+pk.kind+'／'+pk.name, px+4, py+3, 10, owned?'#7fd6a0':can?'#e8eef2':'#5b6d78');
+    txt(owned?'':String(cost), px+colW-12, py+3, 10, can?'#e8c05a':'#5b6d78','right');
+    if (can) hs(px,py,colW-8,rowH-2, ()=>buyPerk(pk));
+  });
+  const btn=(label,x,fn)=>{ box(x,cv.height-24,80,18,'#1d2f39','#2b3b46');
+    txt(label,x+8,cv.height-21,11); hs(x,cv.height-24,80,18,fn); };
+  btn('◀ 前', 12, ()=>{ perkScroll=Math.max(0,perkScroll-perCol*cols); });
+  btn('次 ▶', 96, ()=>{ if(perkScroll+perCol*cols<PERKS.length) perkScroll+=perCol*cols; });
+  btn('次へ（転生）', cv.width-100, ()=>doPrestige());
+}
+
+/* --- 画面C：釣り場選び --------------------------------------------------- */
+function drawC(){
+  box(0,0,cv.width,cv.height,'#0d1418');
+  drawTop();
+  txt(S.run+'周目：釣り場を選ぶ', 12, TOPH+6, 16, '#e8eef2');
+  const cols=4, w=(cv.width-24)/cols-8, h=76;
+  for (let p=0;p<8;p++){
+    const c=p%cols, r=Math.floor(p/cols);
+    const x=12+c*(w+8), y=TOPH+30+r*(h+10);
+    const un = S.unlockedPlace[p];
+    box(x,y,w,h, un?'#16232a':'#101a1f', '#2b3b46');
+    // 小さい絵
+    box(x+4,y+4,w-8,26, un?PLACES[p].sky:'#0c1418');
+    box(x+4,y+30,w-8,18, un?PLACES[p].water:'#0a1014');
+    txt((p+1)+' '+PLACES[p].n, x+6, y+50, 11, un?'#e8eef2':'#5b6d78');
+    const caught = S.dex[p].filter(Boolean).length;
+    if (un){
+      txt(caught+'／5', x+w-8, y+50, 11, '#9fb6c4','right');
+      if (bossReady(p)) txt('主が出る', x+6, y+62, 10, '#e8c05a');
+      hs(x,y,w,h, ()=>{ gotoPlace(p); scr='A'; syncRods(); });
+    } else {
+      txt(PLACES[p].move+' '+yen(moveCost(p)), x+6, y+62, 10, '#5b6d78');
+    }
+  }
+  txt('未解放は道具屋で移動手段を買うと開く（ここでは買えない）', 12, cv.height-18, 11, '#5b6d78');
+}
+
+/* --- 図鑑 ---------------------------------------------------------------- */
+function drawDex(){
+  box(20,20,cv.width-40,cv.height-40,'#0a1216','#3a4d59');
+  txt('図鑑  '+dexCount()+'／40', 30, 28, 14, '#e8c05a');
+  if (has('opn8')) txt('埋まり具合で売値 +'+(T.opn8v*dexCount()*100).toFixed(1)+'%', cv.width-80, 30, 11, '#7fd6a0','right');
+  const colW=(cv.width-60)/4;
+  const rowH=Math.max(9, Math.floor((cv.height-70)/4/6.4));
+  for (let p=0;p<8;p++){
+    const c=p%2, r=Math.floor(p/2);
+    const x=30+c*colW*2, y=48+r*(rowH*6+4);
+    const all = placeAllCaught(p);
+    txt((p+1)+' '+PLACES[p].n+(all?'（全部釣った 売値+'+(T.dexAllBonus*100)+'%）':''),
+        x, y, 11, all?'#7fd6a0':'#9fb6c4');
+    for (let g=0;g<5;g++){
+      const got = S.dex[p][g];
+      const yy = y+rowH+g*rowH;
+      ctx.fillStyle = got ? ['#7fa0b0','#8fb08f','#c0b070','#c08060','#e8c05a'][g] : '#20303a';
+      ctx.fillRect(x, yy+2, 8, 8);
+      txt(got? FISH[p][g] : '？？？', x+12, yy, 10, got?'#e8eef2':'#4a5a64');
+      txt(got? yen(unitPrice(p,g)) : '', x+colW*2-20, yy, 10, '#8fa3b0','right');
+    }
+  }
+  box(cv.width-70,26,40,16,'#1d2f39','#2b3b46'); txt('閉じる',cv.width-66,28,10);
+  hs(cv.width-70,26,40,16,()=>overlay=null);
+}
+
+/* --- 記録（測る仕組み・画面から見る形） ---------------------------------- */
+function drawRecOverlay(){
+  box(20,20,cv.width-40,cv.height-40,'#0a1216','#3a4d59');
+  txt('記録（この周）', 30, 28, 14, '#e8c05a');
+  const sec = (performance.now()-S.rec.t0)/1000;
+  const L = [
+    ['周', S.run+'周目（目標 '+castTarget(S.run)+'投）'],
+    ['所要時間', fmtSec(sec)],
+    ['釣った回数', S.rec.casts+'投／'+(S.rec.perfect+S.rec.soso)+'匹'],
+    ['格ごと', GRADES.map((g,i)=>g+' '+S.rec.byGrade[i]).join('　')],
+    ['稼ぎ', yen(S.rec.earn)],
+    ['転生でもらえる量', String(presGain(S.rec.earn))],
+    ['完璧／そこそこ／逃す', S.rec.perfect+'／'+S.rec.soso+'／'+S.rec.missed],
+    ['割合', ratioStr()],
+    ['連続の最高', String(bestComboRun)],
+    ['解放したもの', S.rec.unlocked.length? S.rec.unlocked.join('、') : '（なし）'],
+    ['通しの時間', fmtSec(S.totalSec+sec)],
+    ['クリア', S.cleared ? S.clearRun+'周目／'+fmtSec(S.clearSec) : '（まだ）'],
+  ];
+  L.forEach((r,i)=>{
+    txt(r[0], 30, 52+i*17, 11, '#8fa3b0');
+    txt(r[1], 170, 52+i*17, 11, '#e8eef2');
+  });
+  box(cv.width-70,26,40,16,'#1d2f39','#2b3b46'); txt('閉じる',cv.width-66,28,10);
+  hs(cv.width-70,26,40,16,()=>overlay=null);
+}
+function ratioStr(){
+  const n = S.rec.perfect+S.rec.soso+S.rec.missed;
+  if (!n) return '—';
+  const p=x=>(x/n*100).toFixed(1)+'%';
+  return p(S.rec.perfect)+'／'+p(S.rec.soso)+'／'+p(S.rec.missed);
+}
+
+/* ---------------------------------------------------------------------------
+   横のパネル：つまみ（分類してたためる）／記録／セーブ
+   ------------------------------------------------------------------------- */
+const side = document.getElementById('side');
+function mkBox(title, closed){
+  const b=document.createElement('div'); b.className='box'+(closed?' closed':'');
+  const h=document.createElement('h3'); h.innerHTML='<span>'+title+'</span><span class="caret">▾</span>';
+  const d=document.createElement('div');
+  h.onclick=()=>b.classList.toggle('closed');
+  b.appendChild(h); b.appendChild(d); side.appendChild(b); return d;
+}
+function buildTuner(){
+  side.innerHTML='';
+
+  // 操作の説明
+  const g = mkBox('操作', false);
+  g.innerHTML = '<div class="hint">'
+    + '押す＝スペース／Z／クリック。<b>単押し</b>と<b>押しっぱなし</b>の二種類だけ。<br>'
+    + '待っているあいだに押すと投げる。符号の上に光の線が来たら押す。<br>'
+    + '短点（■）は単押し、長点（▬）は押しっぱなし。</div>';
+
+  // 記録
+  const rec = mkBox('記録（まとめて書き出す）', false);
+  const recPre = document.createElement('pre'); recPre.id='recpre';
+  const rb = document.createElement('div'); rb.className='btnrow';
+  rb.innerHTML = '<button id="rcTsv">TSVを出す</button><button id="rcJson">JSONを出す</button>'
+               + '<button id="rcCopy">選択用に表示</button>';
+  rec.appendChild(rb); rec.appendChild(recPre);
+  const recTbl = document.createElement('div'); recTbl.id='rectbl'; rec.appendChild(recTbl);
+
+  // セーブ
+  const sv = mkBox('セーブ（10.5章）', true);
+  sv.innerHTML =
+    '<div class="btnrow"><button id="svSave">いま保存</button><button id="svLoad">読み込む</button>'
+    + '<button id="svExp">書き出し</button><button id="svImp">読み込み（文字列）</button>'
+    + '<button id="svReset">最初から</button></div>'
+    + '<textarea id="svBox" style="width:100%;height:70px;background:#0a1216;color:#e8eef2;'
+    + 'border:1px solid #2b3b46;font-size:10px"></textarea>';
+
+  // つまみ（10章の分類ごと）
+  const groups = [];
+  for (const [id,gp,label,,ty] of TUNE_DEF){ if(!groups.includes(gp)) groups.push(gp); }
+  for (const gp of groups){
+    const d = mkBox('つまみ｜'+gp, true);
+    for (const [id,g2,label,,ty] of TUNE_DEF){
+      if (g2!==gp) continue;
+      const row=document.createElement('div'); row.className='row';
+      const lab=document.createElement('label'); lab.textContent=label; row.appendChild(lab);
+      const inp=document.createElement('input');
+      if (ty==='b'){ inp.type='checkbox'; inp.checked=!!T[id];
+        inp.onchange=()=>{ T[id]=inp.checked?1:0; onTuneChange(id); };
+      } else { inp.type='number'; inp.step='any'; inp.value=T[id];
+        inp.onchange=()=>{ const v=parseFloat(inp.value); if(!isNaN(v)){ T[id]=v; onTuneChange(id);} };
+      }
+      inp.id='tune_'+id; row.appendChild(inp); d.appendChild(row);
+    }
+  }
+  const rst = mkBox('つまみを初期値に戻す', true);
+  rst.innerHTML='<div class="btnrow"><button id="tnReset">10章の初期値に戻す</button></div>'
+    + '<div class="hint">10章の値に戻します。</div>';
+
+  document.getElementById('tnReset').onclick=()=>{
+    for (const [id,,,v] of TUNE_DEF) T[id]=v; syncTunerInputs(); fitCanvas(); bgmStart();
+  };
+  document.getElementById('svSave').onclick=()=>{ const a=T.autoSave; T.autoSave=1; save(); T.autoSave=a; note('保存した'); };
+  document.getElementById('svLoad').onclick=()=>{ if(load()) { syncTunerInputs(); fitCanvas(); note('読み込んだ'); } };
+  document.getElementById('svExp').onclick=()=>{ document.getElementById('svBox').value=exportStr(); };
+  document.getElementById('svImp').onclick=()=>{
+    if (importStr(document.getElementById('svBox').value)){ syncTunerInputs(); fitCanvas(); note('読み込んだ'); }
+    else note('読み込めなかった');
+  };
+  document.getElementById('svReset').onclick=()=>{
+    localStorage.removeItem(SAVE_KEY); S=newState(); scr='C'; combo=0; bestComboRun=0;
+    creel=0; rods.length=0; syncRods(); note('最初から');
+  };
+  document.getElementById('rcTsv').onclick =()=>{ recPre.textContent = recTsv(); };
+  document.getElementById('rcJson').onclick=()=>{ recPre.textContent = JSON.stringify(recAll(),null,1); };
+  document.getElementById('rcCopy').onclick=()=>{ recPre.textContent = recTsv(); recPre.focus(); };
+}
+function onTuneChange(id){
+  if (id==='scrW'||id==='scrH') fitCanvas();
+  if (id==='bgmOn'||id==='sndOn') { bgmStop(); bgmStart(); }
+  if (id==='sndVol' && master) master.gain.value=T.sndVol;
+  save();
+}
+function syncTunerInputs(){
+  for (const [id,,,,ty] of TUNE_DEF){
+    const e=document.getElementById('tune_'+id); if(!e) continue;
+    if (ty==='b') e.checked=!!T[id]; else e.value=T[id];
+  }
+}
+
+/* --- 測る仕組み：まとめて書き出せる形 ------------------------------------ */
+function recAll(){
+  const cur = {...S.rec, sec:(performance.now()-S.rec.t0)/1000, bestCombo:bestComboRun,
+               presGot:presGain(S.rec.earn), 進行中:true};
+  return {
+    通し:{周数:S.run, 総時間秒:S.totalSec+cur.sec, 図鑑:dexCount()+'/40',
+          クリア周:S.cleared?S.clearRun:null, クリア総時間秒:S.cleared?S.clearSec:null},
+    周ごと:[...S.history, cur].map(r=>({
+      周:r.no, 所要秒:+(r.sec||0).toFixed(1), 目標投数:castTarget(r.no),
+      投数:r.casts, 雑魚:r.byGrade[0], 並:r.byGrade[1], 良型:r.byGrade[2],
+      大物:r.byGrade[3], 超大物:r.byGrade[4],
+      稼ぎ:r.earn, 転生でもらった量:r.presGot,
+      完璧:r.perfect, そこそこ:r.soso, 逃す:r.missed,
+      完璧率:pct(r.perfect,r), そこそこ率:pct(r.soso,r), 逃す率:pct(r.missed,r),
+      連続の最高:r.bestCombo, 解放:(r.unlocked||[]).join('｜'),
+    })),
+  };
+}
+function pct(x,r){ const n=r.perfect+r.soso+r.missed; return n? +(x/n*100).toFixed(1) : 0; }
+function recTsv(){
+  const a = recAll(); const rows = a.周ごと;
+  if (!rows.length) return '';
+  const keys = Object.keys(rows[0]);
+  const head = keys.join('\t');
+  const body = rows.map(r=>keys.map(k=>r[k]).join('\t')).join('\n');
+  const t = a.通し;
+  return head+'\n'+body+'\n\n通し\t周数 '+t.周数+'\t総時間秒 '+t.総時間秒.toFixed(1)
+       +'\t図鑑 '+t.図鑑+'\tクリア周 '+(t.クリア周??'-')
+       +'\tクリア総時間秒 '+(t.クリア総時間秒? t.クリア総時間秒.toFixed(1):'-');
+}
+function refreshRecTable(){
+  const el = document.getElementById('rectbl'); if(!el) return;
+  const rows = recAll().周ごと.slice(-8);
+  let h='<table><tr><th>周</th><th>所要</th><th>目標</th><th>投</th><th>稼ぎ</th>'
+      + '<th>転生</th><th>完/そ/逃</th><th>連続</th></tr>';
+  for (const r of rows){
+    h+='<tr><td>'+r.周+'</td><td>'+fmtSec(r.所要秒)+'</td><td>'+r.目標投数+'投</td>'
+     + '<td>'+r.投数+'</td><td class="l">'+yen(r.稼ぎ)+'</td><td>'+r.転生でもらった量+'</td>'
+     + '<td>'+r.完璧+'/'+r.そこそこ+'/'+r.逃す+'</td><td>'+r.連続の最高+'</td></tr>';
+  }
+  el.innerHTML = h+'</table>';
+}
+
+/* ---------------------------------------------------------------------------
+   起動
+   ------------------------------------------------------------------------- */
+document.getElementById('help').textContent =
+  '押す＝スペース／Z／クリック。単押しと押しっぱなしの二種類だけ。';
+buildTuner();
+if (!load()) { S = newState(); }
+syncRods(); fitCanvas(); bgmStart();
+
+let recTick=0;
+function loop(now){
+  const dt = Math.min(0.05, (now-last)/1000); last = now;
+  update(dt);
+  draw();
+  recTick += dt;
+  if (recTick>0.5){ recTick=0; refreshRecTable(); }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
