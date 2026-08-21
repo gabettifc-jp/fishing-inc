@@ -218,7 +218,8 @@ async function runOnce(page, skill, seed, sets, trace) {
       // 次に狙うパーク（経験で買う）までの見込み
       {
         // 無限段も段数型も PERKS に入っている。値段は本体の perkCost が出す
-        const avail = PERKS.filter(pk => !perkDone(pk));
+        // **湧いているものだけを見る**（解禁条件が入った）
+        const avail = PERKS.filter(pk => !perkDone(pk) && perkOpen(pk));
         const cheapest = avail.length ? Math.min(...avail.map(pk => perkCost(pk))) : Infinity;
         const need = cheapest - S.pres;
         const cur  = Math.max(1e-9, presGain(earn));
@@ -258,7 +259,7 @@ async function runOnce(page, skill, seed, sets, trace) {
       };
       const doneOf = pk => perkStep(pk) + (extra[pk.id]||0) >= perkMax(pk);
       for (let k = 0; k < 300; k++) {
-        const avail = PERKS.filter(pk => !doneOf(pk));
+        const avail = PERKS.filter(pk => !doneOf(pk) && perkOpen(pk));
         if (!avail.length) break;
         let pick = avail[0];
         for (const pk of avail) if (costOf(pk) < costOf(pick)) pick = pk;
@@ -293,7 +294,7 @@ async function runOnce(page, skill, seed, sets, trace) {
     function buyPerks() {
       for (let guard = 0; guard < 500; guard++) {
         // 無限段も段数型も PERKS に入っている。**安いものから順に買う**
-        const avail = PERKS.filter(p => !perkDone(p) && S.pres >= perkCost(p));
+        const avail = PERKS.filter(p => !perkDone(p) && perkOpen(p) && S.pres >= perkCost(p));
         if (!avail.length) break;
         avail.sort((a, b) => perkCost(a) - perkCost(b));
         const before = S.pres;
