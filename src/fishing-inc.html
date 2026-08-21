@@ -58,7 +58,7 @@
 "use strict";
 /* ============================================================================
    釣りインクリメンタル（仮題） 第一段の実装
-   仕様書 spec.md 第32版 に対応。数値は一つもコードに直接書かない。
+   仕様書 spec.md 第33版 に対応。数値は一つもコードに直接書かない。
    すべて下の TUNE（10章のつまみ）と DATA（仕様書の表）から引く。
    ========================================================================== */
 
@@ -150,6 +150,16 @@ const TUNE_DEF = [
   ['coolCost',        '7. 道具', 'クーラー・初期の値段',                  200,  'n'],
   ['coolGrow',        '7. 道具', 'クーラー・伸び率',                      1.20, 'n'],
   ['coolEff',         '7. 道具', 'クーラー・一段あたり（売値 ×(1+率)）',  0.05, 'n'],
+  // 所持数の節目（AdVenture Capitalist：25と50で ×2、積み上がる。
+  // Cookie Clicker：1/5/25/50/100/150/200。**その道具の効きが倍になる**）
+  ['ms1',             '7. 道具', '所持数の節目1（段）',                   15,   'n'],
+  ['ms2',             '7. 道具', '所持数の節目2（段）',                   40,   'n'],
+  ['ms3',             '7. 道具', '所持数の節目3（段）',                   80,   'n'],
+  ['ms4',             '7. 道具', '所持数の節目4（段）',                   160,  'n'],
+  ['msMult',          '7. 道具', '節目ごとの倍率',                        2,    'n'],
+  // **伸び率は相場帯（AdCap 1.07／Cookie Clicker 1.15）に寄せない。**
+  // あの帯は「収入を生む建物の梯子」の話で、この道具は**天井のある効き**である。
+  // 全部 1.15 にして測ったら、通しが 2時間0分 → 1時間3分、一周31投 → 12投になった
   ['deep12',          '7. 道具', '深場の精度・釣り場1〜2の倍率',          1.0,  'n'],
   ['deep34',          '7. 道具', '深場の精度・釣り場3〜4の倍率',          0.7,  'n'],
   ['deep56',          '7. 道具', '深場の精度・釣り場5〜6の倍率',          0.5,  'n'],
@@ -165,16 +175,20 @@ const TUNE_DEF = [
   ['move8',           '8. 移動手段', '8 深海（潜水艇）',                  95360000000000,'n'],
 
   // 9. 転生
-  ['presExp',         '9. 転生', '式の指数',                             0.3,  'n'],
+  ['presExp',         '9. 転生', '式の指数（累計型。Cookie Clicker は 1/3）', 0.3334,'n'],
   ['dexDoneMult',     '10. パーク（無限段）', '図鑑を揃えたときの恒久倍率',    20,  'n'],
   ['infCoolBase',     '10. パーク（無限段）', 'クーラー売値・1段目の値段',      40,  'n'],
-  ['infCoolGrow',     '10. パーク（無限段）', '同・値段の伸び率',              1.8, 'n'],
+  ['infCoolGrow',     '10. パーク（無限段）', '同・値段の伸び率',              1.45,'n'],
   ['infCoolEff',      '10. パーク（無限段）', '同・効果の伸び率（売値の倍率）', 1.6, 'n'],
   ['infRodBase',      '10. パーク（無限段）', '竿本数・1段目の値段',            60,  'n'],
-  ['infRodGrow',      '10. パーク（無限段）', '同・値段の伸び率',              2.0, 'n'],
+  ['infRodGrow',      '10. パーク（無限段）', '同・値段の伸び率',              1.45,'n'],
   ['infRodEff',       '10. パーク（無限段）', '同・効果の伸び率',              1.6, 'n'],
+  // **上限を置く（制御されたインフレ）。**効果の伸びが費用の伸びを上回るので、
+  // 上限が無いと発散する（The Paper Pilot, Balancing）
+  ['infCoolMax',      '10. パーク（無限段）', 'クーラー売値・段数の上限',       12,  'n'],
+  ['infRodMax',       '10. パーク（無限段）', '竿本数・段数の上限',             12,  'n'],
   ['presWorth',       '9. 転生', '今回もらえる経験が持ち分のこの倍で転生', 1.0, 'n'],
-  ['presFar',         '9. 転生', '次の一歩がこの秒数以上なら転生の合図', 1800, 'n'],
+  ['presFar',         '9. 転生', '次の一歩がこの秒数以上なら転生の合図', 5000, 'n'],
   ['presDiv',         '9. 転生', '式の割る数',                           120,  'n'],
   ['presLock',        '9. 転生', '恒久ボーナスのロック（なし＝切）',     0,    'b'],
   ['flashSec',        '13. 演出', '符号が反応する長さ（秒。8章0）',      0.12, 'n'],
@@ -216,9 +230,9 @@ const TUNE_DEF = [
   // 有限段：竿（精度）1〜10段。値段は 40 × 1.7^(段−1)
   ['pkRodAccBase','10. パーク（掛かる型）','竿の精度・1段目の値段',40,'n'],
   ['pkRodAccGrow','10. パーク（掛かる型）','竿の精度・値段の伸び率',1.7,'n'],
-  ['pkRodAccMax', '10. パーク（掛かる型）','竿の精度・段数の上限',10,'n'],
+  ['pkRodAccMax', '10. パーク（掛かる型）','竿の精度・段数の上限',4,'n'],
   ['autoAccCap',  '10. パーク（掛かる型）','自動の精度・天井（手動を上回らない）',0.85,'n'],
-  ['autoAccDecay','10. パーク（掛かる型）','自動の精度・天井へ寄る速さ',0.8,'n'],
+  ['autoAccDecay','10. パーク（掛かる型）','自動の精度・天井へ寄る速さ',0.55,'n'],
   // 有限段：餌3段・リール3段
   ['pkBait1c','10. パーク（掛かる型）','餌1・値段',2,'n'],
   ['pkBait1v','10. パーク（掛かる型）','餌1・餌一段の効きを→',0.04,'n'],
@@ -268,8 +282,8 @@ const TUNE_DEF = [
   ['carSlotMax', '10. パーク（持ち越し型）','持ち越し枠・段数の上限',5,'n'],
   ['carKeepBase','10. パーク（持ち越し型）','引継ぎ割合・1段目の値段',50,'n'],
   ['carKeepGrow','10. パーク（持ち越し型）','引継ぎ割合・値段の伸び率',2.2,'n'],
-  ['carKeepMax', '10. パーク（持ち越し型）','引継ぎ割合・段数の上限',8,'n'],
-  ['carKeepMult','10. パーク（持ち越し型）','引継ぎ割合・一段あたりの倍率',1.25,'n'],
+  ['carKeepMax', '10. パーク（持ち越し型）','引継ぎ割合・段数の上限',4,'n'],
+  ['carKeepMult','10. パーク（持ち越し型）','引継ぎ割合・一段あたりの倍率',1.55,'n'],
   // 基準の引継ぎ割合（持ち越せるものは六つ。所持金は枠の六つ目）
   ['carryRod','10. パーク（持ち越し型）','基準の割合・竿',0.60,'n'],
   ['carryReel','10. パーク（持ち越し型）','基準の割合・リール',0.50,'n'],
@@ -494,7 +508,7 @@ function newState(){
     tier:{rodAcc:0, carSlot:0, carKeep:0},   // 段数型のパークの段数（10章10）
     dex:FISH.map(r=>r.map(()=>false)),
     carrySel:[],                    // 次の周へ持ち越す道具のid
-    lastEarn:0,
+    lastEarn:0, lifeEarn:0,          // 通しの累計の稼ぎ（転生通貨の式が使う）
     totalSec:0, startedAt:Date.now(),
     cleared:false, clearRun:0, clearSec:0,
     rec:newRunRecord(1),
@@ -531,9 +545,13 @@ function perkStep(pk){                       // いま持っている段数
   if (pk.type==='inf')  return infOf(pk.id==='infCool'?'cool':'rod');
   return has(pk.id) ? 1 : 0;
 }
-function perkMax(pk){                        // 段数の上限。無限段は無し
+function perkMax(pk){
   if (pk.type==='tier') return T[pk.maxKey];
-  if (pk.type==='inf')  return Infinity;
+  // **無限段にも上限を置く（制御されたインフレ）。**
+  // 効果の伸びが費用の伸びを上回る形にしたので、上限が無いと発散する
+  //（The Paper Pilot, "Guide to Incrementals / Balancing"：手は三つ、
+  //  1 効果の伸び>費用の伸び／2 反復購入に上限／3 softcap。1と2を組む）
+  if (pk.type==='inf')  return pk.id==='infCool' ? T.infCoolMax : T.infRodMax;
   return 1;
 }
 function perkDone(pk){ return perkStep(pk) >= perkMax(pk); }
@@ -628,8 +646,26 @@ function deepMult(p){                                   // p は 0..7
   return [T.deep12,T.deep12,T.deep34,T.deep34,T.deep56,T.deep56,T.deep78,T.deep78][p];
 }
 // 判定の幅（ミリ秒）。基準 × リール(複利) × 深場倍率、天井で頭打ち
+/* 所持数の節目（7章・10章7）。**その道具の効きが、節目ごとに倍になる。**
+   相場：AdVenture Capitalist は **25 と 50 で ×2（積み上がる）**、
+   Cookie Clicker は **1 / 5 / 25 / 50 / 100 / 150 / 200** で倍
+   （gamedev/references/incremental-2026-08-20.md 5-1・3-4）。
+   **転生通貨を使わない。周の中で起きる。**
+   これが 5-4 の「**下の層を買う意味を残す**」への答えでもある。 */
+function msSteps(){ return [T.ms1, T.ms2, T.ms3, T.ms4]; }
+function milestone(id){
+  const n = S.tools[id]||0;
+  let m = 1;
+  for (const st of msSteps()) if (n >= st) m *= T.msMult;
+  return m;
+}
+function msNext(id){                       // 次の節目まで、あと何段か。無ければ null
+  const n = S.tools[id]||0;
+  for (const st of msSteps()) if (n < st) return {at:st, left:st-n};
+  return null;
+}
 function windows(){
-  const r = pow(1+reelEff(), S.tools.reel), d = deepMult(S.place);
+  const r = pow(1+reelEff(), S.tools.reel) * milestone('reel'), d = deepMult(S.place);
   // 基準 × 深場倍率 × リール（複利）。天井は最後にかける
   let hit = T.winHit  * d * r * (has('pkReel3') ? (1+T.pkReel3v) : 1);
   let grz = T.winGraze * d * r;
@@ -642,10 +678,10 @@ function windows(){
    自動の竿にも及ぶのは「自動の竿も逃さなくなる」を取ってから。 */
 function missRatio(auto){
   if (has('pkLineAll') && (!auto || has('pkLineAuto'))) return 1;
-  return Math.min(T.missRatio0 * pow(1+lineEff(), S.tools.line), T.capMiss);
+  return Math.min(T.missRatio0 * pow(1+lineEff(), S.tools.line) * milestone('line'), T.capMiss);
 }
 function waitRange(){
-  const f = pow(1-baitEff(), S.tools.bait);
+  const f = pow(1-baitEff(), S.tools.bait) / milestone('bait');
   // 「入れ食いになる」を取ると床が緩む（開く型11）
   const floorLo = has('opn11') ? T.opn11v : T.capWaitLo;
   const lo = Math.max(floorLo, T.waitLo*f);
@@ -679,7 +715,7 @@ function dexDone(){
   return true;
 }
 function sellMult(){
-  let m = pow(1+coolEff(), S.tools.cool) * infCoolMult();
+  let m = pow(1+coolEff(), S.tools.cool) * milestone('cool') * infCoolMult();
   if (dexDone()) m *= T.dexDoneMult;
   if (has('opn8')) m *= (1 + T.opn8v*dexCount());
   if (has('opn7') && placeAllCaught(S.place)) m *= (1 + T.dexAllBonus);
@@ -699,7 +735,7 @@ function autoAcc(){
   let a = Math.max(open, autoAccAt(tierOf('rodAcc')));
   return Math.min(a, 0.999);        // 手動を上回らない（100%未満）
 }
-function autoRodCount(){ return S.tools.rod + infRodCount(); }
+function autoRodCount(){ return Math.floor(S.tools.rod * milestone('rod')) + infRodCount(); }
 /* 持ち越し（7章・10章10）。**持ち越せるものは六つ**（道具5種と所持金）。
    枠は 0段で0枠、1段で1枠…5段で6枠。 */
 /* **0段で1枠、5段で6枠**（10章10「枠が 1 → 6」、上限は6）。
@@ -719,7 +755,25 @@ function unitPrice(p,g){
 }
 function moveCost(p){ return [0,T.move2,T.move3,T.move4,T.move5,T.move6,T.move7,T.move8][p]; }
 function nextPlace(){ return S.place+1 <= 7 ? S.place+1 : -1; }
-function presGain(earn){ return Math.floor(pow(Math.max(0,earn)/T.presDiv, T.presExp)); }
+/* 転生通貨（9章）。**通しの累計で出す（決）。**
+   相場は四本あり、二つに割れる（references 5-3、Pecorella "The Math of Idle Games III"）。
+
+     累計型  Cookie Clicker  p = ∛(累計/10^12)      … 倍にするには前回の8倍
+             AdVenture Cap.  p = 150·√(累計/10^15)
+     ラン型  Egg, Inc.       Δp = (この周の稼ぎ/10^6)^0.14 … 倍にするには128倍
+
+   > **lifetime 基準は継続的な前進を促す。
+   >   run 基準は決まった地点での稼ぎ直しが成立する。**
+
+   **第一段はラン型だった。**測ると、同じ地点で切り直すのがいちばん得になり、
+   **一周13〜18投で87〜103周**という形になった（目標は35〜50投・25周）。
+   **これはラン型が持っている性質そのもので、値では直らない。**
+   累計型に替える。**同じ地点で切っても累計が増えていないので、通貨は増えない。** */
+function presTotal(life){ return Math.floor(pow(Math.max(0,life)/T.presDiv, T.presExp)); }
+function presGain(earn){
+  const life = (S.lifeEarn||0) + Math.max(0, earn);
+  return Math.max(0, presTotal(life) - presTotal(S.lifeEarn||0));
+}
 // その周の目標投数（10章11）。導入だけ短い
 function castTarget(no){ return no===1 ? T.castTarget1 : T.castTarget; }
 function bossReady(p){ return has('opn7') && S.dex[p].slice(0,8).every(Boolean); }
@@ -1272,6 +1326,7 @@ function endRun(){                     // 画面Bへ
 }
 function doPrestige(){
   // 転生通貨は endRun() で入れ済み。ここでは足さない
+  S.lifeEarn = (S.lifeEarn||0) + Math.max(0, S.rec.earn);   // **先に足さない。**presGain が差分で出す
   S.lastEarn = S.rec.earn;
   S.history.push(JSON.parse(JSON.stringify(S.rec)));
   S.totalSec += S.rec.sec;
@@ -1621,6 +1676,15 @@ function drawShop(x,y,w,h){
     txt(yen(it.price), x+w-8, yy+2, 10, can?'#e8c05a':'#5b6d78','right');
     // 買うと何がどれだけ変わるか（9章）。稼ぎが動くものには倍率も添える
     txt(toolEff(it), x+8, yy+19, 9, can?'#9fb6c4':'#4a5a63');
+    // **次の節目まであと何段か（決）。**これは上限ではなく、次の褒美の位置
+    if (it.kind==='tool'){
+      const nx = msNext(it.id);
+      const mm = milestone(it.id);
+      const tag = nx ? 'あと'+nx.left+'段で ×'+T.msMult
+                     : (mm>1 ? '節目ぜんぶ ×'+Math.round(mm) : '');
+      if (tag) txt(tag, x+w-8, yy+19, 9, nx ? '#e8c05a' : '#7fd6a0', 'right');
+      if (mm>1 && nx) txt('いま ×'+Math.round(mm), x+w-8, yy+9, 9, '#7fd6a0', 'right');
+    }
     if (can) hs(x+4,yy,w-8,36, ()=>buy(it));
     yy += 39;
     if (yy > y+h-30) break;

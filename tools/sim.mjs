@@ -225,6 +225,9 @@ async function runOnce(page, skill, seed, sets, trace) {
         const cur  = Math.max(1e-9, presGain(earn));
         if (cur < need) best = Math.min(best, t * (Math.pow(need/cur, 1/T.presExp) - 1));
         else best = 0;                       // もう届いている
+        // 累計型：切り直しても通貨が増えないなら、**この道は無い**。
+        // ただし best を丸ごと潰さない（移動手段までの時間が消えて、即転生になる）
+        if (cur <= 0 && !isFinite(best)) best = Infinity;
       }
       return best;
     }
@@ -243,6 +246,12 @@ async function runOnce(page, skill, seed, sets, trace) {
       for (const it of shopList())
         if (it.kind === 'move'
             && (it.price - S.money) / Math.max(1e-9, incomeNow()) <= ASSUME.lookSec) return false;
+
+      /* **この周が通貨を一つも生んでいないなら、切らない。**
+         累計型では、同じ地点で切り直しても通貨は増えない（references 5-3）。
+         それでも切ると、道具（持ち越し枠の外）を捨てるだけになる。
+         第一段のラン型のときは、ここが無くても成り立っていた。 */
+      if (presGain(earn) <= 0) return false;
 
       // このまま続けたら、あと lookSec 秒で稼ぎが何割増えるか
       const inc = Math.max(1e-9, incomeNow());
@@ -392,6 +401,7 @@ async function runOnce(page, skill, seed, sets, trace) {
       if (cleared) { clearSec = totalSec; break; }
       // 転生
       S.pres += presGot;
+      S.lifeEarn = (S.lifeEarn||0) + Math.max(0, earn);   // **累計型なので、ここで積む**
       // 持ち越し（7章）。**枠は六つまで。所持金が六つ目**
       const keep = { bait:0, line:0, reel:0, cool:0, rod:0 };
       const slots = carrySlots();
