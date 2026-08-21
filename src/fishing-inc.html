@@ -58,7 +58,7 @@
 "use strict";
 /* ============================================================================
    釣りインクリメンタル（仮題） 第一段の実装
-   仕様書 spec.md 第33版 に対応。数値は一つもコードに直接書かない。
+   仕様書 spec.md 第34版 に対応。数値は一つもコードに直接書かない。
    すべて下の TUNE（10章のつまみ）と DATA（仕様書の表）から引く。
    ========================================================================== */
 
@@ -186,7 +186,7 @@ const TUNE_DEF = [
   // **上限を置く（制御されたインフレ）。**効果の伸びが費用の伸びを上回るので、
   // 上限が無いと発散する（The Paper Pilot, Balancing）
   ['infCoolMax',      '10. パーク（無限段）', 'クーラー売値・段数の上限',       12,  'n'],
-  ['infRodMax',       '10. パーク（無限段）', '竿本数・段数の上限',             12,  'n'],
+  ['infRodMax',       '10. パーク（無限段）', '竿本数・段数の上限',             10,  'n'],
   ['presWorth',       '9. 転生', '今回もらえる経験が持ち分のこの倍で転生', 1.0, 'n'],
   ['presFar',         '9. 転生', '次の一歩がこの秒数以上なら転生の合図', 5000, 'n'],
   ['presDiv',         '9. 転生', '式の割る数',                           120,  'n'],
@@ -221,7 +221,7 @@ const TUNE_DEF = [
   ['ndCarKeep','10. パーク（解禁条件）','引継ぎ割合が湧く・周（一段ごとに＋）',4,'n'],
   // 節目は 10章11 の表が決めている（周3・4・8・11・20）
   ['ndOpn1','10. パーク（解禁条件）','節目1 自動の竿が解放される・周',3,'n'],
-  ['ndOpn7','10. パーク（解禁条件）','図鑑が解放される・周',4,'n'],
+  ['ndOpn7','10. パーク（解禁条件）','図鑑が解放される・通しで釣った匹数',60,'n'],
   ['ndOpn4','10. パーク（解禁条件）','節目2 売るのが自動になる・周',8,'n'],
   ['ndOpn5','10. パーク（解禁条件）','節目3 道具を自動で買う・周',11,'n'],
   ['ndOpn6','10. パーク（解禁条件）','節目6 自動でも超大物を捌ける・周',20,'n'],
@@ -574,6 +574,11 @@ function lifeHuge(){                       // 通しで釣った超大物の数
   for (const h of S.history) c += (h.byGrade && h.byGrade[4])||0;
   return c;
 }
+function lifeCatch(){                       // 通しで釣った匹数
+  let c = S.rec.byGrade.reduce((a,b)=>a+b,0);
+  for (const h of S.history) c += (h.byGrade||[]).reduce((a,b)=>a+b,0);
+  return c;
+}
 function lifeCombo(){                      // 通しの最高連続
   let c = bestComboRun;
   for (const h of S.history) c = Math.max(c, h.bestCombo||0);
@@ -582,7 +587,7 @@ function lifeCombo(){                      // 通しの最高連続
 const COND = {
   // 節目（10章11 の表）
   opn1: ()=>['周',       S.run,            T.ndOpn1],
-  opn7: ()=>['周',       S.run,            T.ndOpn7],
+  opn7: ()=>['釣った数', lifeCatch(),      T.ndOpn7],   // **回数から外した**（決・第34版）
   opn4: ()=>['周',       S.run,            T.ndOpn4],
   opn5: ()=>['周',       S.run,            T.ndOpn5],
   opn6: ()=>['周',       S.run,            T.ndOpn6],
@@ -735,7 +740,11 @@ function autoAcc(){
   let a = Math.max(open, autoAccAt(tierOf('rodAcc')));
   return Math.min(a, 0.999);        // 手動を上回らない（100%未満）
 }
-function autoRodCount(){ return Math.floor(S.tools.rod * milestone('rod')) + infRodCount(); }
+/* **所持数の節目を、竿には掛けない（決・第34版）。**
+   他の四つが掛かるのは**天井のある効き**（判定の幅・待ち時間・逃す割合）か売値だが、
+   **竿だけは「投数」そのものを掛け算する。**投数が増えると手動が薄まる。
+   実測：竿40段で×4、80段で×8。**一秒あたり55投**になり、人が押す隙が無くなった。 */
+function autoRodCount(){ return S.tools.rod + infRodCount(); }
 /* 持ち越し（7章・10章10）。**持ち越せるものは六つ**（道具5種と所持金）。
    枠は 0段で0枠、1段で1枠…5段で6枠。 */
 /* **0段で1枠、5段で6枠**（10章10「枠が 1 → 6」、上限は6）。
@@ -2135,7 +2144,7 @@ function recAll(){
   const cur = {...S.rec, sec:(performance.now()-S.rec.t0)/1000, bestCombo:bestComboRun,
                presGot:presGain(S.rec.earn), 進行中:true};
   return {
-    通し:{周数:S.run, 総時間秒:S.totalSec+cur.sec, 図鑑:dexCount()+'/40',
+    通し:{周数:S.run, 総時間秒:S.totalSec+cur.sec, 図鑑:dexCount()+'/'+dexTotal(),   // **直書きしない**（5章は72種）
           クリア周:S.cleared?S.clearRun:null, クリア総時間秒:S.cleared?S.clearSec:null},
     周ごと:[...S.history, cur].map(r=>({
       周:r.no, 所要秒:+(r.sec||0).toFixed(1), 目標投数:castTarget(r.no),

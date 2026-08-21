@@ -481,6 +481,27 @@ else {
   row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 20周目');
   row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 25周目');
   console.log('─'.repeat(78));
+  /* **報酬ゼロの周を作らない（仕様書 10章10・第34版）。**
+     投数0の周が1周でもあったら、しきい値が間違っている。
+     実測で**周13〜20 が投数0**になり、遊んだ人が「転生を回すだけで楽しくなかった」と言った。 */
+  {
+    const empt = out.map(o => o.perRun.filter(r => typeof r.no === 'number' && r.casts === 0).length);
+    const thin = out.map(o => o.perRun.filter(r => typeof r.no === 'number'
+                              && r.casts > 0 && r.casts < 5).length);
+    const bad = empt.some(n => n > 0);
+    console.log(`  ${bad ? '✗' : '○'} 投数0の周　${empt.join(' / ')}　（決：1周でもあったら しきい値が間違っている）`);
+    console.log(`  　 5投未満の周　${thin.join(' / ')}`);
+    /* **一秒あたりの投数。**自動の竿が増えすぎると、人が押す隙が無くなる。
+       実測（第33版）で**毎秒55投・101投**の周が出て、完璧率が0.0%になった。 */
+    const rate = out.map(o => {
+      const rs = o.perRun.filter(r => typeof r.no === 'number' && r.sec > 0);
+      return rs.length ? Math.max(...rs.map(r => r.all / r.sec)) : 0;
+    });
+    const rbad = rate.some(v => v > 10);
+    console.log(`  ${rbad ? '✗' : '○'} 一秒あたりの投数（最大）　${rate.map(v=>v.toFixed(1)).join(' / ')}`
+              + `　（10を超えると手動の居場所が無い）`);
+  }
+  console.log('─'.repeat(78));
   /* **測っていない時間を、黙って落とさない**（check.md）。
      この測定器は「迷わない人」を回している。**画面を読む時間が入っていない。**
      人がやると必ずこれより長くなる。**出した通し時間は下限である。** */
