@@ -481,6 +481,19 @@ else {
   row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 20周目');
   row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 25周目');
   console.log('─'.repeat(78));
+  /* **通しで何回、自分で竿を振ることになるか。**
+     仕様書 10章11 の想定は**約1,010回**（3章「約1,010回は上限であって、義務ではない」）。
+     **平均だけ見ていると、周数が増えたときに総数が膨らんでいることに気づけない。** */
+  {
+    const tot = out.map(o => o.perRun.filter(r => typeof r.no === 'number')
+                              .reduce((a,r) => a + r.casts, 0));
+    const all = out.map(o => o.perRun.filter(r => typeof r.no === 'number')
+                              .reduce((a,r) => a + r.all, 0));
+    const over = tot.some(v => v > 1010 * 1.5);
+    console.log(`  ${over ? '✗' : '○'} 通しで自分で振る回数　${tot.join(' / ')}　（想定 約1,010回。10章11）`);
+    console.log(`  　 同・自動もあわせた総数　${all.map(v=>v.toLocaleString('en-US')).join(' / ')}`);
+  }
+  console.log('─'.repeat(78));
   /* **報酬ゼロの周を作らない（仕様書 10章10・第34版）。**
      投数0の周が1周でもあったら、しきい値が間違っている。
      実測で**周13〜20 が投数0**になり、遊んだ人が「転生を回すだけで楽しくなかった」と言った。 */
