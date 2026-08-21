@@ -284,7 +284,7 @@ async function runOnce(page, skill, seed, sets, trace) {
       for (let guard = 0; guard < 300; guard++) {
         const list = shopList();
         const mv = list.find(i => i.kind === 'move');
-        if (mv && S.money >= mv.price) { buy(mv); bought = true; continue; }  // 周の目標が最優先
+        if (mv && S.money >= mv.price) { buy(mv); bought = true; buyCount++; if (!has('opn5')) manualBuys++; continue; }  // 周の目標が最優先
         // 元が取れる道具だけ買う。安いものから見る
         const tools = list.filter(i => i.kind === 'tool' && S.money >= i.price)
                           .sort((a,b)=>a.price-b.price);
@@ -294,7 +294,7 @@ async function runOnce(page, skill, seed, sets, trace) {
           if (d > 0 && it.price / d <= ASSUME.paybackSec) { pick = it; break; }
         }
         if (!pick) break;
-        buy(pick); bought = true;
+        buy(pick); bought = true; buyCount++; if (!has('opn5')) manualBuys++;
       }
       return bought;
     }
@@ -314,6 +314,7 @@ async function runOnce(page, skill, seed, sets, trace) {
 
     /* --- 通しプレイ ------------------------------------------------------ */
     const runs = []; let runs0trace = null;
+    let buyCount = 0, manualBuys = 0;   // 道具屋の回数。**自動購入を取る前だけが人の手**
     let totalSec = 0, cleared = false, clearRun = 0, clearSec = 0;
     let omenCastsLocal = 0;
 
@@ -422,7 +423,7 @@ async function runOnce(page, skill, seed, sets, trace) {
     const last = runs[runs.length-1] || {};
     return {
       skill, seed, sigma:+SIGMA.toFixed(1),
-      runs: runs.length, totalSec, cleared, clearRun, clearSec,
+      runs: runs.length, totalSec, cleared, clearRun, clearSec, buyCount, manualBuys,
       firstRunSec: runs[0] ? runs[0].sec : 0,
       lastRunSec: last.sec || 0,
       avgCasts: runs.length ? runs.reduce((a,r)=>a+r.myCasts,0)/runs.length : 0,
@@ -479,6 +480,24 @@ else {
   row('  同・自動もあわせた総数', out.map(r=>Math.round(r.avgAllCasts)).join(' / '), '');
   row('8つ目が開く周', out.map(r=>r.openRun8===null?'—':r.openRun8).join(' / '), '目標 20周目');
   row('クラーケンの周', out.map(r=>r.cleared?r.clearRun:'—').join(' / '), '目標 25周目');
+  console.log('─'.repeat(78));
+  /* **測っていない時間を、黙って落とさない**（check.md）。
+     この測定器は「迷わない人」を回している。**画面を読む時間が入っていない。**
+     人がやると必ずこれより長くなる。**出した通し時間は下限である。** */
+  {
+    const avgRuns = Math.round(out.reduce((a,o)=>a+o.runs,0)/out.length);
+    const avgBuys = Math.round(out.reduce((a,o)=>a+(o.buyCount||0),0)/out.length);
+    const avgMan  = Math.round(out.reduce((a,o)=>a+(o.manualBuys||0),0)/out.length);
+    // **自動購入を取ったあとは人が止まらない。**手で買った回数だけを数える
+    const stops = avgRuns*2 + avgMan;
+    const avgSec = out.reduce((a,o)=>a+o.totalSec,0)/out.length;
+    const plus = k => fs2(avgSec + stops*k);
+    console.log('  測っていない時間（この測定器は「迷わない人」を回している）');
+    console.log(`    転生の画面を読む ${avgRuns}回（パークを選ぶ）／釣り場を選ぶ ${avgRuns}回`);
+    console.log(`    道具屋 ${avgBuys}回 ── うち**手で買う ${avgMan}回**（残りは自動購入を取ったあと）`);
+    console.log(`    止まる回数 合計 ${stops}回 ── 一回5秒なら ${plus(5)}、10秒なら ${plus(10)}、20秒なら ${plus(20)}`);
+    console.log('    **出した通し時間は下限である。**');
+  }
   console.log('─'.repeat(78));
   const r0 = out[0];
   console.log('  1回目の周ごと（最初の6周と最後の3周）');
