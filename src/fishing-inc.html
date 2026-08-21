@@ -2008,8 +2008,8 @@ function load(obj){
        絵が壊れて見えるので、**12章だけ捨てて既定に戻す。**他の章の調整は残す */
     const t = {...(d.T||{})};
     if ((d.v||1) < SAVE_V){
-      for (const [id, grp] of TUNE.map(x=>[x[0], x[1]]))
-        if (grp === '12. 画面') delete t[id];
+      for (const row of TUNE_DEF)                 // 表の名前は TUNE_DEF。**TUNE は無い**
+        if (row[1] === '12. 画面') delete t[row[0]];
     }
     Object.assign(T, t);
     S = d.S; S.rec = S.rec || newRunRecord(S.run||1);

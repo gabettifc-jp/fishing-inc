@@ -104,6 +104,38 @@ for (const place of [0,1,2,3,4,5,6,7]) {
       v.dark > 50 && v.near <= 40);
 }
 
+/* 保存が読めるか（10.5章）。**古い版の保存も読めるか。**
+   第36版で12章のつまみを総入れ替えしたとき、
+   「古ければ12章を捨てる」を入れたつもりで **存在しない名前（TUNE）を参照していた。**
+   load() は try/catch の中なので**例外は握り潰され、保存が丸ごと落ちていた**
+   ── 前から遊んでいた人のデータが消える。落ちても何も言わないので、ここで測る */
+const sv = await pg.evaluate(() => {
+  const out = {};
+  S = newState(); S.money = 987654; S.run = 9; S.place = 3; S.unlockedPlace[3] = true;
+  T.beatSec = 1.234;                                  // 12章でない章の調整（残るはず）
+  T.lySea = 0.66;                                     // 12章の古い値（捨てられるはず）
+  syncRods();
+  const now = exportStr();
+  // 版を 1 に落として「古い保存」を作る
+  const d = JSON.parse(decodeURIComponent(escape(atob(now))));
+  d.v = 1;
+  const old = btoa(unescape(encodeURIComponent(JSON.stringify(d))));
+
+  S = newState(); T.beatSec = 1; T.lySea = 0.80; syncRods();
+  out.いまの版 = importStr(now) && S.money === 987654;
+  S = newState(); T.beatSec = 1; T.lySea = 0.80; syncRods();
+  out.古い版 = importStr(old) && S.money === 987654 && S.run === 9;
+  out.他の章は残るか = T.beatSec === 1.234;
+  out['12章は捨てるか'] = T.lySea === 0.80;
+  return out;
+});
+add('保', '保存が読めるか（いまの版／古い版）',
+    `いま ${sv.いまの版?'○':'×'}／古い ${sv.古い版?'○':'×'}`,
+    sv.いまの版 && sv.古い版);
+add('保', '古い保存で、12章だけ捨てて他は残るか',
+    `他の章 ${sv.他の章は残るか?'残った':'消えた'}／12章 ${sv['12章は捨てるか']?'捨てた':'残った'}`,
+    sv.他の章は残るか && sv['12章は捨てるか']);
+
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
 /* 並びが「値段の安い順」から「湧いている順」に変わったので、見るものも変える。
    **湧いているものが一ページに収まるか。**収まらないと、
