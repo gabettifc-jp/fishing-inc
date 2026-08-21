@@ -511,6 +511,7 @@ function waitRange(){
   return {lo,hi};
 }
 function dexCount(){ let c=0; for(const r of S.dex) for(const b of r) if(b) c++; return c; }
+function dexTotal(){ let c=0; for(const r of FISH) c+=r.length; return c; }
 function placeAllCaught(p){ return S.dex[p].every(Boolean); }
 // 無限段（10章10）。値段 = 初期値 × 伸び率^段数、効果 = 効果の伸び率^段数
 function infPrice(axis){
@@ -1679,7 +1680,7 @@ function drawC(){
     txt((p+1)+' '+PLACES[p].n, x+6, y+50, 11, un?'#e8eef2':'#5b6d78');
     const caught = S.dex[p].filter(Boolean).length;
     if (un){
-      txt(caught+'／5', x+w-8, y+50, 11, '#9fb6c4','right');
+      txt(caught+'／'+FISH[p].length, x+w-8, y+50, 11, '#9fb6c4','right');
       if (bossReady(p)) txt('主が出る', x+6, y+62, 10, '#e8c05a');
       hs(x,y,w,h, ()=>{ gotoPlace(p); scr='A'; syncRods(); });
     } else {
@@ -1692,7 +1693,8 @@ function drawC(){
 /* --- 図鑑 ---------------------------------------------------------------- */
 function drawDex(){
   box(20,20,cv.width-40,cv.height-40,'#0a1216','#3a4d59');
-  txt('図鑑  '+dexCount()+'／40', 30, 28, 14, '#e8c05a');
+  // 総数は FISH から数える。**直書きすると古くなる**（5章は魚72種）
+  txt('図鑑  '+dexCount()+'／'+dexTotal(), 30, 28, 14, '#e8c05a');
   if (has('opn8')) txt('埋まり具合で売値 +'+(T.opn8v*dexCount()*100).toFixed(1)+'%', cv.width-80, 30, 11, '#7fd6a0','right');
   const colW=(cv.width-60)/4;
   const rowH=Math.max(9, Math.floor((cv.height-70)/4/6.4));
