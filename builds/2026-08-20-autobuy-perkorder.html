@@ -55,7 +55,7 @@
 "use strict";
 /* ============================================================================
    釣りインクリメンタル（仮題） 第一段の実装
-   仕様書 spec.md 第30版 に対応。数値は一つもコードに直接書かない。
+   仕様書 spec.md 第25版 に対応。数値は一つもコードに直接書かない。
    すべて下の TUNE（10章のつまみ）と DATA（仕様書の表）から引く。
    ========================================================================== */
 
@@ -72,12 +72,7 @@ const TUNE_DEF = [
   ['dashBeats',       '1. リズムゲー', '長音の長さ（拍）',                 2,    'n'],
   ['maxSyms',         '1. リズムゲー', '符号数の上限',                     8,    'n'],
   ['countInBeats',    '1. リズムゲー', 'カウントイン（拍）',               4,    'n'],
-  ['countInSound',    '1. リズムゲー', 'カウントインの音（1で鳴らす）',    0,    'n'],
-  ['beatTick',        '1. リズムゲー', '譜面のあいだも拍を刻む〔仕様書に無い〕', 0, 'b'],
-  ['tickHz',          '1. リズムゲー', '拍の音の高さ（Hz）',              1000, 'n'],
-  ['tickHzTop',       '1. リズムゲー', '小節あたまの音の高さ（Hz）',      1600, 'n'],
-  ['tickMs',          '1. リズムゲー', '拍の音の長さ（ミリ秒）',            14, 'n'],
-  ['tickVol',         '1. リズムゲー', '拍の音の音量',                    0.10, 'n'],
+  ['countInSound',    '1. リズムゲー', 'カウントインの音（1で鳴らす）',    1,    'n'],
   ['winHit',          '1. リズムゲー', '判定の幅・当たり（ミリ秒）',       60,   'n'],
   ['winGraze',        '1. リズムゲー', '判定の幅・かすり（ミリ秒）',       140,  'n'],
   ['holdKeep',        '1. リズムゲー', '長音を押している必要のある割合',   0.75, 'n'],
@@ -227,8 +222,6 @@ const TUNE_DEF = [
   ['opn9c','10. パーク（開く型）','9 未発見が掛かりやすい・値段',422,'n'],
   ['opn9v','10. パーク（開く型）','9 未発見の出現率 ×',2,'n'],
   ['opn10c','10. パーク（開く型）','10 主が出やすくなる・値段',3041,'n'],
-  ['opn11c','10. パーク（開く型）','11 入れ食いになる・値段',4000,'n'],
-  ['opn11v','10. パーク（開く型）','11 待ち時間の下限（秒まで）',0.3,'n'],
   ['dexAllBonus','10. パーク（開く型）','その釣り場を全部釣ったときの売値 +',0.10,'n'],
 
   // 10. パーク・持ち越し型（4）
@@ -261,21 +254,14 @@ const TUNE_DEF = [
   ['bandPad',     '12. 画面', '帯の左右の余白',                          90,   'n'],
   ['bandH',       '12. 画面', '譜面の帯の高さ',                          80,   'n'],
   ['holdBodyH',   '12. 画面', '長音の胴の太さ（画素。頭は短音と同じ）',    5,    'n'],
-  ['apOn',        '12. 画面', '押す位置に縮む輪を出す（9章）',           1,    'b'],
-  ['apBeats',     '12. 画面', '輪が縮み始める拍数',                      2,    'n'],
-  ['apStart',     '12. 画面', '輪の出はじめの大きさ（符号の何倍）',      4.5,  'n'],
-  ['apW',         '12. 画面', '輪の線の太さ（画素）',                    2,    'n'],
   ['bandPop',     '12. 画面', '帯がポップする速さ（秒）',                0.2,  'n'],
   ['floatSize',   '12. 画面', '浮きの大きさ',                            8,    'n'],
   ['fishSmall',   '12. 画面', '魚の絵（雑魚）',                          16,   'n'],
   ['fishHugeFrac','12. 画面', '魚の絵（超大物）画面に対する割合',        0.6,  'n'],
-  ['fishGradeStep','12. 画面','魚の絵・格ごとの拡大（+割合）',            0.25, 'n'],
   ['rodW',        '12. 画面', '竿の先の太さ',                            3,    'n'],
   ['rodsDrawn',   '12. 画面', '竿を描く上限の本数',                      8,    'n'],
 
   // 13. 演出
-  ['fxCardSec',   '13. 演出', '釣果の札が出ている長さ（秒）',            1.2,  'n'],
-  ['fxCardRise',  '13. 演出', '釣果の札が浮き上がる距離（画素）',        18,   'n'],
   ['fxCatchSmall','13. 演出', '魚が上がった・雑魚（秒）',                0.1,  'n'],
   ['fxCatchBig',  '13. 演出', '魚が上がった・大物（秒）',                0.3,  'n'],
   ['fxDigit',     '13. 演出', '桁が変わった（秒）',                      0.4,  'n'],
@@ -291,14 +277,6 @@ const TUNE_DEF = [
   ['tapHz',       '音（11章）', '打鍵音の高さ（Hz。8章0）',              2200, 'n'],
   ['tapMs',       '音（11章）', '打鍵音の長さ（ミリ秒。8章0）',            35, 'n'],
   ['tapVol',      '音（11章）', '打鍵音の音量（8章0）',                   0.22, 'n'],
-  ['melOn',       '音（11章）', '押した音を旋律にする（11章）',            1,    'b'],
-  ['melBase',     '音（11章）', '旋律のいちばん低い音（Hz）',            1046.5, 'n'],
-  ['melMode',     '音（11章）', '旋律の決め方（0=譜面の形 1=押すたびに昇る）', 1, 'n'],
-  ['melHold',     '音（11章）', '長音は押しているあいだ伸ばす',            0,    'b'],
-  ['melWave',     '音（11章）', '旋律の波形（0=矩形 1=三角 2=鋸）',        1,    'n'],
-  ['melAtk',      '音（11章）', '旋律の立ち上がり（ミリ秒）',              1,    'n'],
-  ['melDec',      '音（11章）', '旋律の減衰（ミリ秒）',                  240,   'n'],
-  ['melRel',      '音（11章）', '長音を離したときの止まり方（ミリ秒）',    60,   'n'],
   ['sndOn',       '音（11章）', '音を鳴らす',                            1,    'b'],
   ['bgmOn',       '音（11章）', 'BGMを鳴らす',                           1,    'b'],
   ['sndVol',      '音（11章）', '音量',                                  0.25, 'n'],
@@ -363,11 +341,7 @@ const BOSS_CHART = [
   '・ー・ー・ー・','ー・ー・・ー・ー','・・ー・ーー・・','ーー・ー・ーーー',
 ];
 
-// 11章 旋律の音階。**いちばん低い音からの倍率**（ハ長調のペンタトニック8段）。
-// 実際の高さは つまみ「旋律のいちばん低い音」× この比
-const MEL_RATIO = [1, 9/8, 5/4, 3/2, 5/3, 2, 9/4, 5/2];
-
-// 7章 道具（自分の竿は自分の道具ではない）
+// 7章 道具（自分の竿は道具ではない）
 const TOOLS = [
   {id:'bait', n:'餌',            cost:'baitCost', grow:'baitGrow', carry:'carryBait'},
   {id:'line', n:'釣り糸',        cost:'lineCost', grow:'lineGrow', carry:'carryLine'},
@@ -404,7 +378,6 @@ const PERKS = [];
     ['図鑑の埋まり具合で売値が上がる',''],
     ['まだ釣っていない魚が掛かりやすくなる','図鑑を埋めに行ける'],
     ['主が出やすくなる','予兆の確率が上がる'],
-    ['入れ食いになる','待ち時間の下限が緩む。終盤にだけ効く'],
   ];
   opens.forEach((o,i)=>mk('opn'+(i+1),'開く型',o[0],'opn'+(i+1)+'c',o[1]));
   const carr = [
@@ -501,9 +474,7 @@ function windows(){
 function missRatio(){ return Math.min(T.missRatio0 * pow(1+lineEff(), S.tools.line), T.capMiss); }
 function waitRange(){
   const f = pow(1-baitEff(), S.tools.bait);
-  // 「入れ食いになる」を取ると床が緩む（開く型11）
-  const floorLo = has('opn11') ? T.opn11v : T.capWaitLo;
-  const lo = Math.max(floorLo, T.waitLo*f);
+  const lo = Math.max(T.capWaitLo, T.waitLo*f);
   const hi = Math.max(lo, T.waitHi*f);
   return {lo,hi};
 }
@@ -592,33 +563,6 @@ function beep(freq, dur, type, vol){
   g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime+dur);
   o.connect(g); g.connect(master); o.start(); o.stop(ac.currentTime+dur+0.02);
 }
-/* 11章 旋律の一音。長音は押しているあいだ伸ばし、離すと止める（8章0） */
-const MEL_WAVE = ['square','triangle','sawtooth'];
-let melVoice = null;
-function melStop(){
-  if (!melVoice) return;
-  const ac = audio(), g = melVoice.g, o = melVoice.o, t = ac.currentTime;
-  const rel = Math.max(0.01, T.melRel/1000);
-  g.gain.cancelScheduledValues(t);
-  g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), t);
-  g.gain.exponentialRampToValueAtTime(0.0001, t+rel);
-  o.stop(t+rel+0.02); melVoice = null;
-}
-function melPlay(step, hold){
-  if (!T.sndOn) return;
-  melStop();
-  const ac = audio(), o = ac.createOscillator(), g = ac.createGain();
-  o.type = MEL_WAVE[Math.max(0,Math.min(2, Math.round(T.melWave)))] || 'square';
-  o.frequency.value = melHz(step);
-  const t = ac.currentTime, atk = Math.max(0.0005, T.melAtk/1000);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(Math.max(0.0001, T.tapVol), t+atk);
-  o.connect(g); g.connect(master); o.start(t);
-  if (hold){ melVoice = {o,g}; return; }              // 離すまで伸ばす
-  const dec = Math.max(0.005, T.melDec/1000);
-  g.gain.exponentialRampToValueAtTime(0.0001, t+atk+dec);
-  o.stop(t+atk+dec+0.02);
-}
 function omenSound(on){
   if (!T.sndOn){ on=false; }
   if (on && !omenNode){
@@ -660,34 +604,6 @@ function frameBeats(){ return T.maxSyms * T.dashBeats; }
 function bandSec(){ return beatSec() * (T.countInBeats + frameBeats()); }
 
 // 譜面 -> 各符号の {start, dur, long}（秒）。16拍の格子に置き、余り拍を間隔に配る
-/* 11章 旋律。**譜面の並びだけから決める。間隔は使わない。**
-   3章が「間隔も毎回ランダムに振り直す」と決めているので、間隔から音を決めると
-   同じ譜面でも毎回ちがう旋律になってしまう。並びだけなら、**同じ譜面はいつも同じ旋律**。
-   音階の端では折り返す（頭打ちにすると同じ音が続く） */
-function melodyOf(chartIn){
-  // **譜面は文字列でも配列でも来る。**timeline() は文字列を受け取る（castRod）ので、
-  // ここで必ず配列に直す。直さないと文字列に .map が無くて落ちる
-  const chart = [...chartIn];
-  const top = MEL_RATIO.length-1;
-  // 0=譜面の形で決まる／1=押すたびに昇る（10章「旋律の決め方」）
-  if (Math.round(T.melMode) === 1)
-    return chart.map((_,i)=>Math.min(i, top));
-  const out = []; let k = 3;                            // 真ん中から始める
-  for (let i=0;i<chart.length;i++){
-    if (i>0){
-      const long = chart[i]==='ー', prev = chart[i-1]==='ー';
-      let step = long ? 3 : 2;
-      if (prev) step -= 1;                               // 長音のあとは詰める
-      if ((i + (prev?1:0)) % 2 === 1) step = -step;      // 一つおきに下げる
-      k += step;
-      while (k<0 || k>top) k = k<0 ? -k : 2*top-k;       // 端で折り返す
-    }
-    out.push(k);
-  }
-  return out;
-}
-function melHz(step){ return T.melBase * MEL_RATIO[Math.max(0,Math.min(MEL_RATIO.length-1,step))]; }
-
 function timeline(chart, fixed){
   const b = beatSec(), n = chart.length;
   const vals = [...chart].map(ch => ch==='ー' ? T.dashBeats : T.dotBeats);
@@ -708,7 +624,7 @@ function timeline(chart, fixed){
     out.push({start:t, dur:b*vals[i], long: chart[i]==='ー', ch: chart[i]});
     t += b*vals[i] + b*gaps[i+1];
   }
-  return {syms:out, total: bandSec(), mel: melodyOf(chart)};   // 旋律は並びだけから（11章）
+  return {syms:out, total: bandSec()};
 }
 // 完璧で許される取りこぼしの個数（符号数ごと。割合ではない）
 function slipAllow(n){
@@ -771,13 +687,8 @@ function autoPlay(r){
   r.autoResult = ok ? 'soso' : 'miss';
 }
 /* 8章0「符号を押した」の返し。**判定は変えない。**見立てた段だけで鳴らし、光らせる */
-function pressBack(grade, dtSec, mel, hold){
-  // 旋律（11章）。**窓の外では鳴らさない。**鳴らないこと自体が返しになる（旋律に穴があく）
-  if (T.melOn){
-    if (mel != null) melPlay(mel, !!hold);
-  } else if (grade !== 'miss' || mel != null){
-    beep(T.tapHz, Math.max(0.005, T.tapMs/1000), 'square', T.tapVol);
-  }
+function pressBack(grade, dtSec){
+  beep(T.tapHz, Math.max(0.005, T.tapMs/1000), 'square', T.tapVol);
   edgeAt = performance.now()/1000;
   edgeKind = (grade==='miss') ? 'miss' : 'hit';
   if (T.dirOn && grade!=='hit'){
@@ -823,10 +734,8 @@ function applyResult(r, result, saved){
   if (result==='miss'){
     if (!r.auto){ combo = 0; S.rec.missed++; beep(140,0.18,'sawtooth',0.4); }
     else S.rec.missed++;
-    const ms = GRADE_SLOTS[g];
-    r.last = {result, grade:g, money:0, saved, slot:ms[(Math.random()*ms.length)|0], isNew:false};
+    r.last = {result, grade:g, money:0, saved};
     fxAdd('miss', g, r);
-    if (!r.auto) fxAdd('card', g, r);
     if (g===4) { fxAdd('hugeMiss', g, r); beep(90,0.5,'sawtooth',0.5); }
     return;
   }
@@ -848,13 +757,10 @@ function applyResult(r, result, saved){
   S.rec.byGrade[g]++;
   const slots = GRADE_SLOTS[g];
   const slot = slots[(Math.random()*slots.length)|0];
-  const isNew = !S.dex[S.place][slot];
-  if (isNew){ S.dex[S.place][slot] = true; note('図鑑：'+FISH[S.place][slot]+' を記録'); }
-  r.last = {result, grade:g, money, saved, slot, isNew};
+  if (!S.dex[S.place][slot]){ S.dex[S.place][slot] = true; note('図鑑：'+FISH[S.place][slot]+' を記録'); }
+  r.last = {result, grade:g, money, saved};
 
   fxAdd(result==='perfect'?'perfect':'soso', g, r);
-  // 釣果の札。**演出1（0.1秒）とは別の層で、演出1は止めない**（8章1）
-  if (!r.auto) fxAdd('card', g, r);
   if (g===4){ fxAdd('huge', g, r); beep(880,0.5,'square',0.8); }
   else {
     const f = [520,620,740,900][g] || 520;
@@ -880,9 +786,7 @@ function fxAdd(kind, grade, r){
     dur = grade>=3 ? T.fxCatchBig : T.fxCatchSmall;
   } else if (kind==='digit'){ dur=T.fxDigit; text='桁'; }
   else if (kind==='place'){ dur=T.fxPlace; stop=true; text=PLACES[S.place].n; }
-  else if (kind==='card'){ dur=T.fxCardSec; }
-  else if (kind==='huge'){ dur=T.fxHuge; stop=true;
-    text=FISH[S.place][(r&&r.last&&r.last.slot!=null)?r.last.slot:GRADE_SLOTS[4][0]]; }
+  else if (kind==='huge'){ dur=T.fxHuge; stop=true; text=FISH[S.place][4]; }
   else if (kind==='hugeMiss'){ dur=T.fxHuge; stop=true; text='逃した'; }
   else if (kind==='auto'){ dur=T.fxAuto; stop=true; text='自動化'; }
   else if (kind==='prestige'){ dur=T.fxPrestige; stop=true; text='転生'; }
@@ -890,148 +794,6 @@ function fxAdd(kind, grade, r){
   if (stop) blockUntil = Math.max(blockUntil, now+dur);
 }
 function note(s){ toast.push({s, until:performance.now()/1000+2.5}); }
-
-/* ---------------------------------------------------------------------------
-   秒あたりの稼ぎの目安（9章 画面A）。
-   **腕は勘定に入れない。**人によって違うので、入れると比べられなくなる。
-   格の出現率で単価をならし、一投の秒数で割る。自動の竿はそこそこ止まりで足す。
-   ------------------------------------------------------------------------- */
-function rateEst(){
-  const w = [T.rate0,T.rate1,T.rate2,T.rate3], sum = w.reduce((a,b)=>a+b,0);
-  let unit = 0;
-  for (let g=0; g<4; g++) unit += (w[g]/sum) * unitPrice(S.place, g);
-  const wr = waitRange();
-  const sec = (wr.lo + wr.hi)/2 + bandSec() + T.fxCatchSmall;
-  const rodN = 1 + autoRodCount() * autoAcc();
-  return unit * sellMult() * rodN / sec;
-}
-// その道具を一段買ったら、秒あたりの稼ぎが何倍になるか
-function rateIfBuy(tool){
-  const keep = S.tools[tool];
-  S.tools[tool] = keep + 1;
-  const after = rateEst();
-  S.tools[tool] = keep;
-  const now = rateEst();
-  return now > 0 ? after/now : 1;
-}
-// 道具屋の一行に出す「いま → 買った後」（9章）
-function toolEff(item){
-  if (item.kind === 'move') return PLACES[item.id].n+' が開く';
-  const t = item.id, keep = S.tools[t];
-  const sample = f => { S.tools[t] = keep+1; const a = f(); S.tools[t] = keep; return a; };
-  let now, next, label;
-  if (t === 'bait'){
-    label = '待ち';
-    const a = waitRange(), b = sample(waitRange);
-    now = a.lo.toFixed(1)+'〜'+a.hi.toFixed(1)+'秒'; next = b.lo.toFixed(1)+'〜'+b.hi.toFixed(1)+'秒';
-  } else if (t === 'line'){
-    label = '許される外し'; now = pc(missRatio()); next = pc(sample(missRatio));
-  } else if (t === 'reel'){
-    label = '当たりの幅';
-    now = Math.round(windows().hit)+'ms'; next = Math.round(sample(windows).hit)+'ms';
-  } else if (t === 'cool'){
-    label = '売値'; now = mul(sellMult()); next = mul(sample(sellMult));
-  } else if (t === 'rod'){
-    label = '自動の竿'; now = autoRodCount()+'本'; next = sample(autoRodCount)+'本';
-  } else return '';
-  const r = rateIfBuy(t);
-  // 秒あたりの稼ぎが動くものだけ倍率を添える（9章）
-  const tail = Math.abs(r-1) >= 0.005 ? '  稼ぎ '+mul(r) : '';
-  return label+' '+now+' → '+next+tail;
-}
-
-/* ---------------------------------------------------------------------------
-   パークの効果を数で見せる（9章 画面B）。
-   相場は「取ると何がどれだけ上がるか」を具体的な数で出すこと。
-   買った効果が測れない、という文句がジャンルの定番になっている
-   （gamedev/templates/sheets/genre/incremental.md）。
-   ------------------------------------------------------------------------- */
-const pc  = v => (v*100).toFixed(v*100<10?1:0)+'%';
-const mul = v => '×'+(+v).toFixed(2);
-const PERK_EFF = {
-  pkRod1:  ()=>['竿の値段の伸び率', mul(toolGrow('rod')),  mul(T.pkRod1v)],
-  pkRod2:  ()=>['開始時の自動の竿', '+0本',                '+'+T.pkRod2v+'本'],
-  pkRod3:  ()=>['自動の竿の精度',   pc(autoAcc()),         pc(autoAcc()+T.pkRod3v)],
-  pkBait1: ()=>['餌一段の効き',     pc(baitEff()),         pc(T.pkBait1v)],
-  pkBait2: ()=>['餌の値段の伸び率', mul(toolGrow('bait')), mul(T.pkBait2v)],
-  pkBait3: ()=>['餌一段の効き',     pc(baitEff()),         pc(T.pkBait3v)],
-  pkLine1: ()=>['糸一段の効き',     pc(lineEff()),         pc(T.pkLine1v)],
-  pkLine2: ()=>['糸の値段の伸び率', mul(toolGrow('line')), mul(T.pkLine2v)],
-  pkLine3: ()=>['逃しても釣れている', '0%',                pc(T.pkLine3v)],
-  pkReel1: ()=>['リール一段の効き', pc(reelEff()),         pc(T.pkReel1v)],
-  pkReel2: ()=>['リールの伸び率',   mul(toolGrow('reel')), mul(T.pkReel2v)],
-  pkReel3: ()=>['当たりの判定幅',   Math.round(windows().hit)+'ms',
-                                    Math.round(windows().hit*(1+T.pkReel3v))+'ms'],
-  pkCool1: ()=>['クーラー一段の効き', pc(coolEff()),       pc(T.pkCool1v)],
-  pkCool2: ()=>['クーラーの伸び率', mul(toolGrow('cool')), mul(T.pkCool2v)],
-  pkCool3: ()=>['完璧の倍率',       mul(perfectMult()),    mul(perfectMult()+T.pkCool3v)],
-  opn1:    ()=>['道具屋の竿',       '並ばない',            '並ぶ'],
-  opn2:    ()=>['自動の竿の精度',   pc(autoAcc()),         pc(T.opn2v)],
-  opn3:    ()=>['自動の竿の精度',   pc(autoAcc()),         pc(T.opn3v)],
-  opn4:    ()=>['売る',             '手で押す',            '自動'],
-  opn5:    ()=>['道具を買う',       '手で押す',            '自動（入切できる）'],
-  opn6:    ()=>['自動の竿と超大物', '捌けない',            '捌ける'],
-  opn7:    ()=>['図鑑',             '閉じている',          '開く'],
-  opn8:    ()=>['売値（1種につき）','+0%',                 '+'+pc(T.opn8v)],
-  opn9:    ()=>['未発見の出やすさ', mul(1),                mul(T.opn9v)],
-  opn10:   ()=>['予兆の確率',       pc(T.omenRate),        pc(T.omenRate2)],
-  opn11:   ()=>['待ち時間の下限',   T.capWaitLo+'秒',      T.opn11v+'秒'],
-  car1:    ()=>['持ち越しの枠',     carrySlots()+'枠',     '1枠'],
-  car2:    ()=>['持ち越しの枠',     carrySlots()+'枠',     '2枠'],
-  car3:    ()=>['持ち越しの枠',     carrySlots()+'枠',     '3枠'],
-  car4:    ()=>['開始時の所持金',   '0円',                 '前の周の '+pc(T.car4v)],
-};
-function perkEff(pk){
-  const f = PERK_EFF[pk.id];
-  if (!f) return pk.note || '';
-  const [label, now, next] = f();
-  return label+' '+now+' → '+next;
-}
-
-/* ---------------------------------------------------------------------------
-   魚の絵（11章）。**素材は持たない。**釣り場と枠から毎回おなじ形を組み立てる。
-   格子は16×10。粒の大きさは幅から割り出すので、雑魚も超大物も同じ絵が拡大されるだけ。
-   ------------------------------------------------------------------------- */
-const FISH_GW = 16, FISH_GH = 10;
-function fishArt(place, slot){
-  // 種ごとに固定の見た目。乱数は使わない（同じ魚はいつも同じ形）
-  // 符号なしで扱う。>> だと 2^31 を超えた時に負になり、体高が潰れる
-  const h = (((place*9 + slot + 1) * 2654435761) % 4294967296) >>> 0;
-  const g = SLOT_GRADE[slot];
-  return {
-    hue:    (place*41 + (h>>>3)%37) % 360,
-    body:   0.70 + ((h>>>7)%5)*0.08,        // 体高
-    tail:   0.55 + ((h>>>11)%4)*0.15,       // 尾の張り
-    mark:   (h>>>15)%3,                     // 0=無地 1=縦縞 2=斑
-    grade:  g,
-  };
-}
-function drawFish(cx, cy, w, place, slot){
-  const a = fishArt(place, slot);
-  const px = Math.max(1, Math.round(w / FISH_GW));
-  const x0 = Math.round(cx - FISH_GW*px/2), y0 = Math.round(cy - FISH_GH*px/2);
-  const my = (FISH_GH-1)/2, ry = (FISH_GH/2)*a.body;
-  const L = (l)=>'hsl('+a.hue+',48%,'+l+'%)';
-  const base = 42 + a.grade*4;
-  for (let r=0;r<FISH_GH;r++) for (let c=0;c<FISH_GW;c++){
-    const dy = r - my;
-    let col = null;
-    if (c<=10){                                   // 胴
-      const dx = (c-5)/5.6;
-      if (dx*dx + (dy/ry)*(dy/ry) <= 1){
-        col = L(dy > ry*0.35 ? base+16 : base);   // 腹は明るい
-        if (a.mark===1 && c%3===1 && dy < ry*0.35) col = L(base-14);
-        if (a.mark===2 && (c+r)%4===0 && dy < ry*0.35) col = L(base-14);
-        if (c===2 && r===Math.round(my-1)) col = '#101418';   // 目
-      }
-    } else if (Math.abs(dy) <= (c-10)*a.tail + 0.6){          // 尾
-      col = L(base-8);
-    }
-    if (col){ ctx.fillStyle = col; ctx.fillRect(x0+c*px, y0+r*px, px, px); }
-  }
-}
-// 格が上がるほど大きく描く（12章）
-function fishW(grade){ return T.fishSmall * (1 + grade*T.fishGradeStep); }
 
 /* ---------------------------------------------------------------------------
    買う（道具屋）・釣り場・転生
@@ -1190,25 +952,16 @@ function press(down){
     const w0 = windows(), aMs = bestD*1000;
     if (best < 0 || aMs > w0.graze){
       r.extra = (r.extra||0)+1;
-      // 窓の外でも「早い／遅い」は出す（8章0）。掴まないので、
-      // **向きだけは判定の済んだ符号も含めた一番近い符号から採る**
-      let near = -1, nd = Infinity;
-      for (let i=0;i<r.tl.syms.length;i++){
-        const d = Math.abs(t - r.tl.syms[i].start);
-        if (d < nd){ nd = d; near = i; }
-      }
-      pressBack('miss', near >= 0 ? t - r.tl.syms[near].start : 0, null, false);
+      pressBack('miss', 0);                            // 窓の外でも押したことは返す（8章0）
       return;
     }
     r.aim = best;
     const sy0 = r.tl.syms[best];
     sy0.flash = performance.now()/1000;                // 符号が一瞬ふくらんで戻る（8章0）
-    pressBack(aMs<=w0.hit ? 'hit' : 'graze', t - sy0.start,
-              r.tl.mel ? r.tl.mel[best] : null, sy0.long && T.melHold);
+    pressBack(aMs<=w0.hit ? 'hit' : 'graze', t - sy0.start);
   } else {
     if (!r.holding) return;
     r.holding = false;
-    melStop();                                       // 長音の伸びを止める（8章0）
     const i = r.aim; const s = r.tl.syms[i];
     if (s==null || r.res[i]) { r.pressT=-1; return; }
     const held = t - r.pressT;
@@ -1273,19 +1026,6 @@ function update(dt){
     if (r.phase==='wait'){
       if (r.t >= r.wait) startChart(r);
     } else if (r.phase==='play'){
-      // 拍を鳴らす（3章「カウントインの4拍だけ、一拍ごとに音を鳴らす」）。
-      // **プレイヤーの竿だけ。**自動の竿は音を出さない（9章）
-      if (!r.auto && T.countInSound){
-        const b = Math.floor(r.t / beatSec());
-        if (b !== r.countIn && b >= 0){
-          r.countIn = b;
-          const inCount = b < T.countInBeats;
-          if (inCount || T.beatTick)
-            beep(b % T.countInBeats === 0 ? T.tickHzTop : T.tickHz,
-                 Math.max(0.004, T.tickMs/1000), 'square',
-                 T.tickVol * (inCount ? 1 : 0.6));
-        }
-      }
       // 過ぎた符号を外しにする
       const w = windows();
       for (let i=0;i<r.tl.syms.length;i++){
@@ -1361,7 +1101,7 @@ function drawTop(){
 
 function drawA(){
   const P = PLACES[S.place];
-  const shopW = Math.floor(cv.width*0.33);   // 効果の一行が入る幅（9章）
+  const shopW = Math.floor(cv.width*0.28);
   const bodyY = TOPH, bodyH = cv.height-TOPH;
   const skyH = Math.floor(bodyH*0.34);
   // 空と地上
@@ -1417,21 +1157,19 @@ function drawShop(x,y,w,h){
   txt('道具屋',x+6,y+4,12,'#9fb6c4');
   // 自動購入の入切（10章10「入切できる」）。取っていないあいだは出さない
   if (has('opn5')){
-    const on = S.autoBuyOn!==false, bw2=76;
+    const on = S.autoBuyOn!==false, bw2=52;
     box(x+w-bw2-6, y+2, bw2, 15, on?'#1c3a2c':'#2a1c1c', '#2b3b46');
-    txt('自動購入 '+(on?'入':'切'), x+w-bw2-2, y+4, 10, on?'#7fd6a0':'#e0736b');
+    txt('自動 '+(on?'入':'切'), x+w-bw2-2, y+4, 10, on?'#7fd6a0':'#e0736b');
     hs(x+w-bw2-6, y+2, bw2, 15, ()=>{ S.autoBuyOn = !on; save(); });
   }
   let yy = y+22;
   for (const it of shopList()){
     const can = S.money>=it.price;
-    box(x+4,yy,w-8,36, can?'#1a2c35':'#141d23','#2b3b46');
+    box(x+4,yy,w-8,26, can?'#1a2c35':'#141d23','#2b3b46');
     txt(it.name + (it.kind==='tool'? ' '+it.lv : ''), x+8, yy+2, 11, can?'#e8eef2':'#5b6d78');
-    txt(yen(it.price), x+w-8, yy+2, 10, can?'#e8c05a':'#5b6d78','right');
-    // 買うと何がどれだけ変わるか（9章）。稼ぎが動くものには倍率も添える
-    txt(toolEff(it), x+8, yy+19, 9, can?'#9fb6c4':'#4a5a63');
-    if (can) hs(x+4,yy,w-8,36, ()=>buy(it));
-    yy += 39;
+    txt(yen(it.price), x+w-8, yy+13, 10, can?'#e8c05a':'#5b6d78','right');
+    if (can) hs(x+4,yy,w-8,26, ()=>buy(it));
+    yy += 29;
     if (yy > y+h-30) break;
   }
   txt('転生でもらえる量 '+presGain(S.rec.earn), x+6, y+h-16, 10, '#8fa3b0');
@@ -1487,21 +1225,6 @@ function drawBand(){
     }
     // 頭は長音も短音も同じ点。長音はこの後ろに胴が伸びる（9章）
     box(x-g/2, y+T.bandH/2-4-g/2, 8+g, 8+g, col);
-    // 押す位置に縮む輪（9章）。**符号にぴったり重なった瞬間が押す時**
-    if (T.apOn && !res){
-      const ap = Math.max(0.01, T.apBeats*beatSec());
-      const left = sy.start - r.t;                       // あと何秒で来るか
-      if (left <= ap && left > -0.05){
-        const u = Math.max(0, left/ap);                  // 1=出はじめ 0=ちょうど
-        const rad = 4 + (T.apStart-1)*4*u;               // 符号の半径4に寄っていく
-        ctx.globalAlpha = 0.25 + 0.55*(1-u);
-        ctx.strokeStyle = '#cfe4ee'; ctx.lineWidth = T.apW;
-        ctx.beginPath();
-        ctx.arc(x+4, y+T.bandH/2, rad, 0, Math.PI*2);
-        ctx.stroke();
-        ctx.globalAlpha = 1; ctx.lineWidth = 1;
-      }
-    }
   }
   // 光の線が左から右へ。カウントインのあいだは鈍い色
   const lx = px(r.t);
@@ -1520,26 +1243,13 @@ function drawFxA(){
     if (f.kind==='perfect'||f.kind==='soso'||f.kind==='miss'){
       const a = (f.until-now)/f.dur;
       ctx.globalAlpha = Math.max(0,Math.min(1,a));
+      const col = f.kind==='perfect'?'#7fd6a0':f.kind==='miss'?'#e0736b':'#e8eef2';
+      const label = (f.kind==='miss'?'逃した ':'')+FISH[S.place][f.grade]
+                  + (f.rod&&f.rod.last&&f.rod.last.money?' '+yen(f.rod.last.money):'');
+      txt(label, cv.width/2, cv.height*0.62, f.grade>=3?16:12, col, 'center');
       if (f.kind==='perfect'){ ctx.globalAlpha=a*0.25; box(0,TOPH,cv.width,cv.height-TOPH,'#7fd6a0'); }
       if (f.grade===2){ ctx.globalAlpha=a*0.4; ctx.strokeStyle='#fff'; ctx.strokeRect(1,TOPH+1,cv.width-2,cv.height-TOPH-2); }
       ctx.globalAlpha=1;
-    }
-    // 釣果の札（9章）。絵・名前・一匹の値段。**所持金は上端に出ているので出さない**
-    if (f.kind==='card' && f.rod && f.rod.last){
-      const L = f.rod.last, left = (f.until-now)/f.dur;
-      const a = Math.max(0, Math.min(1, left*3));
-      const rise = (1-left) * T.fxCardRise;
-      const w = fishW(L.grade), cx = cv.width/2, cy = cv.height*0.60 - rise;
-      ctx.globalAlpha = a;
-      if (L.result==='miss'){ ctx.globalAlpha = a*0.45; }
-      drawFish(cx - w*0.55, cy, w, S.place, L.slot);
-      ctx.globalAlpha = a;
-      const name = FISH[S.place][L.slot];
-      txt((L.result==='miss'?'逃した ':'')+name, cx + w*0.15, cy-14,
-          L.grade>=3?15:12, L.result==='miss'?'#e0736b':'#e8eef2');
-      if (L.money) txt(yen(L.money), cx + w*0.15, cy+2, L.grade>=3?15:12, '#e8c05a');
-      if (L.isNew) txt('初', cx + w*0.15 - 16, cy-30, 12, '#7fd6a0');
-      ctx.globalAlpha = 1;
     }
     if (f.kind==='digit'){
       const a=(f.until-now)/f.dur; ctx.globalAlpha=a;
@@ -1556,10 +1266,8 @@ function drawFxTop(){
       box(0,0,cv.width,cv.height, f.kind==='huge'?'#0a0f13':'#000');
       const sz = Math.floor(cv.width*T.fishHugeFrac);
       ctx.globalAlpha=1;
-      if (f.kind==='huge' && f.rod && f.rod.last)
-        drawFish(cv.width/2, cv.height/2, sz, S.place, f.rod.last.slot);
-      else
-        box((cv.width-sz)/2, cv.height/2-sz*0.18, sz, sz*0.36, '#3a2b28');
+      box((cv.width-sz)/2, cv.height/2-sz*0.18, sz, sz*0.36,
+          f.kind==='huge'?'#e8c05a':'#3a2b28');
       txt(f.text, cv.width/2, cv.height*0.18, 22, '#fff','center');
       if (f.kind==='huge' && f.rod && f.rod.last)
         txt(yen(f.rod.last.money), cv.width/2, cv.height*0.76, 16, '#e8c05a','center');
@@ -1614,7 +1322,7 @@ function drawB(){
   // パークの一覧
   const listY = TOPH+132, listH = cv.height-listY-30;
   box(8, listY, cv.width-16, listH, '#0f191f', '#2b3b46');
-  const rowH = 34, perCol = Math.floor((listH-6)/rowH);   // 効果の一行ぶん高くする
+  const rowH = 22, perCol = Math.floor((listH-6)/rowH);
   const cols = 2, colW = (cv.width-24)/cols;
   // 安い順に並べ、取得済みは後ろへ送る（9章）。一覧そのものが「次に取るもの」を助言する
   const order = PERKS.slice().sort((a,b)=>{
@@ -1630,8 +1338,6 @@ function drawB(){
     box(px, py, colW-8, rowH-2, owned?'#1c3a2c':can?'#1a2c35':'#141d23','#2b3b46');
     txt((owned?'✓ ':'')+pk.kind+'／'+pk.name, px+4, py+3, 10, owned?'#7fd6a0':can?'#e8eef2':'#5b6d78');
     txt(owned?'':String(cost), px+colW-12, py+3, 10, can?'#e8c05a':'#5b6d78','right');
-    // 何がどれだけ上がるか（9章）
-    txt(perkEff(pk), px+4, py+17, 9, owned?'#5b8a72':can?'#9fb6c4':'#4a5a63');
     if (can) hs(px,py,colW-8,rowH-2, ()=>buyPerk(pk));
   });
   const btn=(label,x,fn)=>{ box(x,cv.height-24,80,18,'#1d2f39','#2b3b46');

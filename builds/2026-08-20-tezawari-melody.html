@@ -1,0 +1,395 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<title>手触りの見本：押した音が旋律になるか（2026-08-20）</title>
+<style>
+  :root{--ink:#e8eef2;--dim:#8fa3b0;--line:#2b3b46;--bg:#0d1418;--panel:#121e25;
+        --gold:#e8c05a;--good:#7fd6a0;--bad:#e0736b;--mid:#9fb6c4}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",monospace,sans-serif;
+    font-size:13px;line-height:1.6}
+  #wrap{display:flex;gap:12px;padding:12px;align-items:flex-start;flex-wrap:wrap}
+  canvas{background:#0a0f13;border:1px solid var(--line);image-rendering:pixelated}
+  .p{background:var(--panel);border:1px solid var(--line);padding:10px 12px;max-width:520px}
+  h1{font-size:15px;margin:0 0 6px}
+  h2{font-size:13px;margin:14px 0 6px;color:var(--gold)}
+  button{background:#1d2f39;color:var(--ink);border:1px solid var(--line);
+    padding:6px 10px;font:inherit;font-size:12px;cursor:pointer;margin:2px 3px 2px 0}
+  button:hover{background:#27404d}
+  button.on{background:#27404d;border-color:var(--good);color:var(--good)}
+  .big{font-size:14px;padding:9px 16px}
+  .kou{border-color:#7aa8c8}.otsu{border-color:var(--gold)}
+  textarea{width:100%;height:150px;background:#0f191f;color:var(--ink);
+    border:1px solid var(--line);font:inherit;font-size:11px;padding:6px}
+  .dim{color:var(--dim)}.sm{font-size:11px}
+  table{border-collapse:collapse;width:100%;font-size:11px;margin-top:4px}
+  td,th{border:1px solid var(--line);padding:3px 5px;text-align:left}
+</style></head><body>
+<div id="wrap">
+ <div>
+  <canvas id="cv" width="640" height="240"></canvas>
+  <div class="sm dim" style="margin-top:6px">
+   スペース／Z／クリックで押す。長点は押しっぱなし。譜面は止まらずに回り続ける。<br>
+   <b>Tab</b>（または下のボタン）で 甲⇄乙 をその場で入れ替える。待ちも演出も切ってある。
+  </div>
+  <div style="margin-top:8px">
+   <button id="bK" class="big kou">甲を鳴らす</button>
+   <button id="bO" class="big otsu">乙を鳴らす</button>
+   <span class="dim sm" id="now"></span>
+  </div>
+  <div style="margin-top:6px">
+   <button id="wK" class="big">甲が勝ち</button>
+   <button id="wO" class="big">乙が勝ち</button>
+   <button id="wN" class="big">どちらも良くない</button>
+  </div>
+ </div>
+
+ <div class="p">
+  <h1>押した音が旋律になると、気持ちよくなるか</h1>
+  <div class="sm">
+   これは<b>一つの仮説を測るための見本</b>です。相場の三層のうち、
+   <b>三層目（押した音が曲そのものになる）</b>だけを切り出しています。
+   絵の返しは本編と同じものを付けてあります（比べる邪魔にならないように固定）。
+  </div>
+
+  <h2 id="qTitle"></h2>
+  <div id="qBody" class="sm"></div>
+
+  <h2>いまの二つ</h2>
+  <table id="tbl"></table>
+
+  <h2>次に動かすなら（細かい調整位置）</h2>
+  <div id="tune" class="sm"></div>
+
+  <h2>設定を出す</h2>
+  <button id="out">いまの設定を出す</button>
+  <button id="cp">コピー</button>
+  <textarea id="ta" readonly></textarea>
+  <div class="sm dim">出た文をそのまま貼ってください。言葉にしなくて大丈夫です。</div>
+ </div>
+</div>
+<script>
+/* =========================================================================
+   手触りの見本：押した音が旋律になるか（2026-08-20）
+   fishing-inc の第28版から、譜面の帯と判定だけを切り出したもの。
+   釣り・金・パーク・待ち時間・演出は全部落としてある。
+   ========================================================================= */
+const STAMP = '【手触りの見本・旋律（2026-08-20）】';
+
+/* --- つまみ（既定値。個々に触らせない。セットで切り替える） ------------- */
+const T = {
+  beat: 0.25, countInBeats: 4, frameBeats: 16,
+  winHit: 60, winGraze: 140,          // ミリ秒
+  beatW: 27, bandH: 96, holdKeep: 0.75, holdBodyH: 5,
+  flashSec: 0.12, symGrow: 4, edgeSec: 0.12,
+  // 音
+  mode: 'flat',        // flat=一定の打鍵音 / rise=昇る / shape=譜面の形で決まる
+  hz: 2200,            // flat のときの高さ
+  wave: 'square',
+  atk: 0.002,          // 立ち上がり（秒）
+  dec: 0.035,          // 減衰（秒）
+  vol: 0.22,
+  hold: false,         // 長音のあいだ音を伸ばすか
+  miss: true,          // 外したら音を出さない（＝旋律が欠ける）
+};
+const DEF = Object.assign({}, T);
+
+/* --- 音階（報酬の音は高い音。低い持続音は使わない） --------------------- */
+// ハ長調のペンタトニック。**C6 から上へ8段**（1046〜2637Hz）。
+// 音域をここに置いたのは fishing-inc の決「報酬の音は必ず高い音。低い音は予兆にだけ使う」による。
+// いまの打鍵音 2200Hz が、ちょうどこの音階の真ん中あたりに来るので、甲と乙で高さが揃う。
+const SCALE = [1046.50, 1174.66, 1318.51, 1567.98, 1760.00, 2093.00, 2349.32, 2637.02];
+
+/* --- 譜面（固定。比べるあいだ変えない） --------------------------------- */
+//   ・=短音（1拍）  ー=長音（2拍）
+const CHART = ['・','ー','・','・','ー','・'];
+
+/* --- 甲乙の中身。一本道で、勝ったほうが残る ----------------------------- */
+const ROUNDS = [
+  { q: '第1問　いまの音 と、押すたびに音階が昇る音',
+    body: 'いまの本編は <b>2200Hz の同じ音が毎回鳴る</b>だけです。'
+        + '乙は<b>押した順に音階を昇ります</b>。'
+        + '外すとその音が鳴らないので、<b>旋律に穴があきます</b>。',
+    kou: ['いまの音（一定）', {mode:'flat'}],
+    otsu:['押すたびに昇る',   {mode:'rise'}] },
+  { q: '第2問　昇る と、譜面の形で決まる旋律',
+    body: '昇るのは<b>毎回おなじ上がり方</b>です。'
+        + '乙は<b>符号の置かれた拍から音の高さが決まる</b>ので、'
+        + '<b>同じ譜面はいつも同じ旋律</b>になり、譜面ごとに違う旋律になります。',
+    kou: ['押すたびに昇る',   {mode:'rise'}],
+    otsu:['譜面の形で決まる', {mode:'shape'}] },
+  { q: '第3問　いまの立ち上がり と、弾いたような立ち上がり',
+    body: 'いまは <b>35ミリ秒でぶつ切り</b>です。'
+        + '乙は<b>立ち上がりを鋭く、減衰を長く</b>して、弦を弾いたような形にします。'
+        + '相場では「はっきりした立ち上がり」が要ると言われています。',
+    kou: ['いまの切り方（35ms）', {atk:0.002, dec:0.035, wave:'square'}],
+    otsu:['弾いた形（減衰240ms）', {atk:0.001, dec:0.24, wave:'triangle'}] },
+  { q: '第4問　長音は一発 と、長音は押しているあいだ伸びる',
+    body: 'いまは長音も<b>押した瞬間に一発鳴るだけ</b>です。'
+        + '乙は<b>押しているあいだ音が伸び、離すと止まります</b>。'
+        + '相場では「長押しには持続する旋律的な音」とされています。',
+    kou: ['長音も一発', {hold:false}],
+    otsu:['押すあいだ伸びる', {hold:true}] },
+  { q: '第5問　外すと穴があく と、外しても埋まる',
+    body: '乙は<b>外しても音が鳴ります</b>（低く鈍い音で）。'
+        + '甲は<b>何も鳴らないので旋律に穴があきます</b>。'
+        + '「外すと曲が崩れる」が効くかどうかを見ます。',
+    kou: ['外すと穴があく', {miss:true}],
+    otsu:['外しても音は出る', {miss:false}] },
+];
+let round = 0, champ = 'kou', side = 'kou';
+const picked = [];              // 勝ち残った設定
+
+/* --- 音 ----------------------------------------------------------------- */
+let ac = null, held = null;
+const AC = () => ac || (ac = new (window.AudioContext||window.webkitAudioContext)());
+function tone(hz, dur, wave, vol, atk, dec, sustain){
+  const c = AC(), o = c.createOscillator(), g = c.createGain();
+  o.type = wave; o.frequency.value = hz;
+  const t = c.currentTime;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.0001, vol), t + Math.max(0.0005, atk));
+  if (!sustain) g.gain.exponentialRampToValueAtTime(0.0001, t + atk + Math.max(0.005, dec));
+  o.connect(g); g.connect(c.destination); o.start(t);
+  if (!sustain){ o.stop(t + atk + dec + 0.02); return null; }
+  return {o, g, stop(){ const n = c.currentTime;
+    g.gain.cancelScheduledValues(n);
+    g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), n);
+    g.gain.exponentialRampToValueAtTime(0.0001, n + 0.06); o.stop(n + 0.08); }};
+}
+// 符号 i の音の高さ
+function pitchOf(i){
+  if (T.mode === 'flat') return T.hz;
+  if (T.mode === 'rise') return SCALE[Math.min(i, SCALE.length-1)];
+  // shape：前の符号からの拍の空きで音を動かす。詰まっていれば隣、空いていれば跳ぶ。
+  // 同じ譜面はいつでも同じ旋律になる（乱数を使わない）
+  return SCALE[shapeSeq[i]];
+}
+// 譜面が決まった時点で旋律を組む（shape のとき）
+let shapeSeq = [];
+function buildShape(){
+  shapeSeq = []; let k = 2;
+  for (let i=0;i<tl.length;i++){
+    if (i>0){
+      const gap = Math.round((tl[i].start - (tl[i-1].start + tl[i-1].dur)) / T.beat);
+      k += [2,-1,3,-2][Math.max(0, Math.min(3, gap))];        // 空きで動く向きが変わる
+      if (tl[i].long) k += 1;                                  // 長音は一段上
+      // 音階の端で折り返す。頭打ちにすると同じ音が続いてしまう
+      const top = SCALE.length-1;
+      while (k<0 || k>top) k = k<0 ? -k : 2*top-k;
+    }
+    shapeSeq.push(k);
+  }
+}
+function hitSound(i, long){
+  const hz = pitchOf(i);
+  if (T.hold && long){ held = tone(hz, 0, T.wave, T.vol, T.atk, T.dec, true); return; }
+  tone(hz, 0, T.wave, T.vol, T.atk, T.dec, false);
+}
+function missSound(){ if (!T.miss) tone(180, 0, 'sawtooth', T.vol*0.8, 0.002, 0.12, false); }
+
+/* --- 譜面を組む（本編と同じ規則：16拍の格子に置き、余り拍を配る） ------- */
+let tl = [];
+function build(){
+  const vals = CHART.map(c => c==='ー' ? 2 : 1);
+  const used = vals.reduce((a,b)=>a+b,0);
+  let slack = T.frameBeats - used;
+  const slots = CHART.length + 1, gaps = new Array(slots).fill(0);
+  // 見本では毎回おなじ並びにする（比べるあいだ譜面を動かさない）
+  for (let i=0; slack>0; i++, slack--) gaps[i % slots]++;
+  let b = T.countInBeats; tl = [];
+  for (let i=0;i<CHART.length;i++){
+    b += gaps[i];
+    tl.push({start: b*T.beat, dur: vals[i]*T.beat, long: CHART[i]==='ー', flash:null});
+    b += vals[i];
+  }
+}
+build(); buildShape();
+
+/* --- 状態 --------------------------------------------------------------- */
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let t0 = performance.now()/1000, res = [], holding = false, aim = -1, pressT = -1;
+let edgeAt = -9, edgeKind = 'hit', dirMsg = '', dirUntil = 0, extra = 0;
+const loopSec = () => T.beat * (T.countInBeats + T.frameBeats);
+function nowT(){ return (performance.now()/1000 - t0) % loopSec(); }
+
+function press(down){
+  const t = nowT();
+  if (down){
+    holding = true; pressT = t;
+    let best=-1, bd=Infinity;
+    for (let i=0;i<tl.length;i++){ if (res[i]) continue;
+      const d = Math.abs(t - tl[i].start); if (d<bd){ bd=d; best=i; } }
+    const aMs = bd*1000;
+    if (best<0 || aMs > T.winGraze){
+      extra++; edgeAt = performance.now()/1000; edgeKind='miss';
+      let n=-1, nd=Infinity;
+      for (let i=0;i<tl.length;i++){ const d=Math.abs(t-tl[i].start); if(d<nd){nd=d;n=i;} }
+      dirMsg = n>=0 && t - tl[n].start < 0 ? '早い' : '遅い'; dirUntil = edgeAt + 0.25;
+      missSound(); return;
+    }
+    aim = best; tl[best].flash = performance.now()/1000;
+    edgeAt = performance.now()/1000; edgeKind = aMs<=T.winHit ? 'hit' : 'miss';
+    if (aMs > T.winHit){ dirMsg = t - tl[best].start < 0 ? '早い':'遅い'; dirUntil = edgeAt+0.25; }
+    hitSound(best, tl[best].long);
+    if (!tl[best].long) res[best] = aMs<=T.winHit ? 'hit' : 'graze';
+  } else {
+    if (!holding) return; holding = false;
+    if (held){ held.stop(); held = null; }
+    const i = aim, s = tl[i];
+    if (s==null || res[i]) { pressT=-1; return; }
+    const ok = s.long ? (t - pressT >= s.dur*T.holdKeep) : true;
+    const a = Math.abs(pressT - s.start)*1000;
+    res[i] = (a<=T.winHit && ok) ? 'hit' : (a<=T.winGraze && ok) ? 'graze' : 'miss';
+    if (s.long && !ok){ edgeAt = performance.now()/1000; edgeKind='miss';
+      dirMsg='Early'; dirUntil = edgeAt+0.25; }
+    pressT = -1;
+  }
+}
+addEventListener('keydown', e=>{
+  if (e.repeat) return;
+  if (e.code==='Tab'){ e.preventDefault(); setSide(side==='kou'?'otsu':'kou'); return; }
+  if (e.code==='Space'||e.code==='KeyZ'){ e.preventDefault(); press(true); }
+});
+addEventListener('keyup', e=>{ if (e.code==='Space'||e.code==='KeyZ') press(false); });
+cv.addEventListener('mousedown', ()=>press(true));
+addEventListener('mouseup', ()=>press(false));
+
+/* --- 絵（本編と同じ。比べる邪魔にならないよう固定） --------------------- */
+function box(x,y,w,h,f,s){ ctx.fillStyle=f; ctx.fillRect(x|0,y|0,w|0,h|0);
+  if(s){ctx.strokeStyle=s;ctx.strokeRect((x|0)+.5,(y|0)+.5,(w|0)-1,(h|0)-1);} }
+function txt(s,x,y,sz,c,al){ ctx.fillStyle=c||'#e8eef2'; ctx.font=sz+'px monospace';
+  ctx.textAlign=al||'left'; ctx.textBaseline='top'; ctx.fillText(s,x,y); ctx.textAlign='left'; }
+function draw(){
+  const t = nowT(), nowS = performance.now()/1000;
+  if (t < 0.05 && res.length){ res = []; extra = 0; for (const s of tl) s.flash = null; }
+  box(0,0,cv.width,cv.height,'#0a0f13');
+  const beats = T.countInBeats + T.frameBeats, bw = beats*T.beatW;
+  const x0 = Math.floor((cv.width-bw)/2), y = Math.floor((cv.height-T.bandH)/2);
+  box(0,y,cv.width,T.bandH,'#0a0f13','#3a4d59');
+  const px = s => x0 + (s/T.beat)*T.beatW;
+  box(x0, y+8, T.countInBeats*T.beatW, T.bandH-16, '#0d151b');
+  for (let k=1;k<=T.countInBeats;k++) box(x0+k*T.beatW-1, y+T.bandH/2-2, 2, 4, '#3a4d59');
+  for (let i=0;i<tl.length;i++){
+    const sy = tl[i], x = px(sy.start), w = (sy.dur/T.beat)*T.beatW;
+    let col = res[i]==='hit' ? '#7fd6a0' : res[i]==='graze' ? '#e8c05a'
+            : res[i]==='miss' ? '#e0736b' : '#e8eef2';
+    let g = 0;
+    if (sy.flash!=null && nowS-sy.flash < T.flashSec){
+      g = T.symGrow*3*(1-(nowS-sy.flash)/T.flashSec); col='#fff'; }
+    if (sy.long){
+      const span = Math.max(6,w-3), full = Math.max(6, span*T.holdKeep);
+      const bh = T.holdBodyH, by = y+T.bandH/2-bh/2;
+      box(x+full, by, Math.max(0,span-full), bh, '#1e2c34');
+      if (holding && aim===i){
+        const done = Math.max(0, Math.min(full, px(t)-x));
+        box(x, by, done, bh, '#cfe4ee'); box(x+done, by, full-done, bh, col);
+      } else box(x, by, full, bh, col);
+    }
+    box(x-g/2, y+T.bandH/2-4-g/2, 8+g, 8+g, col);
+  }
+  ctx.fillStyle = t < T.beat*T.countInBeats ? '#5b6d78' : '#fff';
+  ctx.fillRect(Math.floor(px(t)), y+8, 2, T.bandH-16);
+  const a = 1-(nowS-edgeAt)/T.edgeSec;
+  if (a>0){ ctx.globalAlpha=a*0.9; ctx.lineWidth=4;
+    ctx.strokeStyle = edgeKind==='miss' ? '#e0736b':'#7fd6a0';
+    ctx.strokeRect(2,2,cv.width-4,cv.height-4); ctx.globalAlpha=1; ctx.lineWidth=1; }
+  if (dirMsg && nowS < dirUntil) txt(dirMsg, cv.width/2, y-24, 15, '#e8c05a','center');
+  const n = res.filter(x=>x==='hit').length;
+  txt((side==='kou'?'甲':'乙')+'　'+ROUND()[side][0], 10, 8, 13,
+      side==='kou'?'#7aa8c8':'#e8c05a');
+  txt('当たり '+n+'／'+tl.length+(extra?'　余計押し '+extra:''), cv.width-10, 8, 11, '#8fa3b0','right');
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+/* --- 甲乙の入れ替え ----------------------------------------------------- */
+const ROUND = () => ROUNDS[Math.min(round, ROUNDS.length-1)];
+function apply(set){ Object.assign(T, DEF); for (const p of picked) Object.assign(T, p);
+  Object.assign(T, set); }
+function setSide(s){
+  side = s; apply(ROUND()[s][1]);
+  document.getElementById('bK').classList.toggle('on', s==='kou');
+  document.getElementById('bO').classList.toggle('on', s==='otsu');
+  document.getElementById('now').textContent =
+    'いま鳴っているのは '+(s==='kou'?'甲':'乙')+'　（Tabで入れ替え）';
+}
+function renderQ(){
+  const r = ROUND();
+  document.getElementById('qTitle').textContent = r.q;
+  document.getElementById('qBody').innerHTML = r.body;
+  document.getElementById('tbl').innerHTML =
+    '<tr><th>甲</th><td>'+r.kou[0]+'</td></tr><tr><th>乙</th><td>'+r.otsu[0]+'</td></tr>';
+  document.getElementById('tune').innerHTML = TUNE[Math.min(round,TUNE.length-1)];
+  setSide('kou');
+}
+const TUNE = [
+ '<b>音階の幅</b>を変えるなら、いまは<b>ハ長調のペンタトニック8段</b>（C6〜E7・1046〜2637Hz）。'
+  +'<br>この高さに置いたのは「<b>報酬の音は必ず高い音</b>」の決による。いまの2200Hzが真ん中に来る。'
+ +'<br>・明るすぎるなら → <b>短調のペンタトニック</b>に落とす'
+ +'<br>・上がりが急なら → <b>1段おき</b>にして幅を詰める',
+ '<b>音の決め方</b>。いまは<b>前の符号からの空き</b>で音を動かす（詰まれば上へ、空けば下へ、長音は一段上）。'
+ +'<br>・跳ねすぎるなら → <b>空いたときの下げ幅</b>を小さく（−3→−1）'
+ +'<br>・平坦なら → 上げ幅を大きく（+2→+3）',
+ '<b>減衰</b> いま 240ミリ秒。<br>・ぼやけるなら → <b>短く</b>（240→120）'
+ +'<br>・ぶつ切りに感じるなら → <b>長く</b>（240→400）<br><b>波形</b> 三角波。硬くしたいなら矩形波',
+ '<b>長音の伸び</b>。伸ばすと決めたら、次は<b>離したときの止まり方</b>（いま60ミリ秒）。'
+ +'<br>・ぶつっと切れるなら → 長く（60→150）',
+ '<b>外したときの音</b>。いま 180Hz の鋸波。'
+ +'<br>・うるさいなら → <b>音量を下げる</b>（0.8→0.4）<br>・分かりにくいなら → もっと低く（180→120）',
+];
+function win(who){
+  const r = ROUND();
+  if (who!=='none') picked.push(r[who][1]);
+  const line = r.q.split('　')[0]+'：'+(who==='none' ? 'どちらも良くない'
+              : (who==='kou'?'甲':'乙')+'（'+r[who][0]+'）');
+  log.push(line);
+  round++;
+  if (round >= ROUNDS.length){ done(); return; }
+  renderQ();
+}
+const log = [];
+function done(){
+  document.getElementById('qTitle').textContent = '終わり。設定を出してください';
+  document.getElementById('qBody').innerHTML =
+    '五問とも終わりました。<b>「設定を出す」を押して、出た文をそのまま貼ってください。</b>';
+  document.getElementById('tune').innerHTML = '—';
+  out();
+}
+document.getElementById('bK').onclick = ()=>setSide('kou');
+document.getElementById('bO').onclick = ()=>setSide('otsu');
+document.getElementById('wK').onclick = ()=>win('kou');
+document.getElementById('wO').onclick = ()=>win('otsu');
+document.getElementById('wN').onclick = ()=>win('none');
+
+/* --- 設定を出す --------------------------------------------------------- */
+const NAME = {
+  mode:['音の決め方',{flat:'一定（いまの本編）',rise:'押すたびに昇る',shape:'譜面の形で決まる'}],
+  hz:['一定のときの高さ（Hz）'], wave:['波形'], atk:['立ち上がり（秒）'],
+  dec:['減衰（秒）'], vol:['音量'], hold:['長音のあいだ伸ばすか'],
+  miss:['外したとき音を出さないか'],
+};
+function out(){
+  const cur = Object.assign({}, DEF); for (const p of picked) Object.assign(cur, p);
+  const diff = [];
+  for (const k of Object.keys(NAME)){
+    if (cur[k] === DEF[k]) continue;
+    const n = NAME[k], v = n[1] ? (n[1][cur[k]] || cur[k]) : cur[k];
+    diff.push('  '+n[0]+' ＝ '+v);
+  }
+  document.getElementById('ta').value =
+    STAMP+'\n'
+    +'押した音が旋律になるか（案A）\n\n'
+    +'選んだ結果\n'+ (log.length? log.map(s=>'  '+s).join('\n') : '  （まだ選んでいない）')
+    +'\n\n既定から変えたもの\n'+ (diff.length? diff.join('\n') : '  （変えていない＝いまの本編のまま）')
+    +'\n\n譜面 '+CHART.join('')+'　一拍 '+T.beat+'秒　枠 '+T.frameBeats+'拍\n'
+    +'判定 当たり±'+T.winHit+'ms／かすり±'+T.winGraze+'ms\n';
+}
+document.getElementById('out').onclick = out;
+document.getElementById('cp').onclick = ()=>{
+  const ta = document.getElementById('ta'); if (!ta.value) out();
+  ta.select(); document.execCommand('copy');
+  document.getElementById('cp').textContent = 'コピーした';
+  setTimeout(()=>document.getElementById('cp').textContent='コピー', 1200);
+};
+renderQ(); out();
+</script></body></html>
