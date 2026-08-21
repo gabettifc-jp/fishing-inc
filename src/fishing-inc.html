@@ -58,7 +58,7 @@
 "use strict";
 /* ============================================================================
    釣りインクリメンタル（仮題） 第一段の実装
-   仕様書 spec.md 第34版 に対応。数値は一つもコードに直接書かない。
+   仕様書 spec.md 第35版 に対応。数値は一つもコードに直接書かない。
    すべて下の TUNE（10章のつまみ）と DATA（仕様書の表）から引く。
    ========================================================================== */
 
@@ -258,10 +258,6 @@ const TUNE_DEF = [
 
   // 10. パーク・開く型（10）
   ['opn1c','10. パーク（開く型）','1 自動の竿が解放される・値段',3,'n'],
-  ['opn2c','10. パーク（開く型）','2 自動の精度1段目・値段',78,'n'],
-  ['opn2v','10. パーク（開く型）','2 そこそこが出る確率を→',0.55,'n'],
-  ['opn3c','10. パーク（開く型）','3 自動の精度2段目・値段',403,'n'],
-  ['opn3v','10. パーク（開く型）','3 そこそこが出る確率を→',0.70,'n'],
   ['autoAcc0','10. パーク（開く型）','自動の精度・初期（そこそこが出る確率）',0.40,'n'],
   ['opn4c','10. パーク（開く型）','4 売るのが自動・値段',16,'n'],
   ['opn5c','10. パーク（開く型）','5 道具を自動で買う・値段',38,'n'],
@@ -279,7 +275,7 @@ const TUNE_DEF = [
   // 10. パーク・持ち越し型（10章10。パークは二本だけ）
   ['carSlotBase','10. パーク（持ち越し型）','持ち越し枠・1段目の値段',30,'n'],
   ['carSlotGrow','10. パーク（持ち越し型）','持ち越し枠・値段の伸び率',2.5,'n'],
-  ['carSlotMax', '10. パーク（持ち越し型）','持ち越し枠・段数の上限',5,'n'],
+  ['carSlotMax', '10. パーク（持ち越し型）','持ち越し枠・段数の上限',6,'n'],
   ['carKeepBase','10. パーク（持ち越し型）','引継ぎ割合・1段目の値段',50,'n'],
   ['carKeepGrow','10. パーク（持ち越し型）','引継ぎ割合・値段の伸び率',2.2,'n'],
   ['carKeepMax', '10. パーク（持ち越し型）','引継ぎ割合・段数の上限',4,'n'],
@@ -467,8 +463,8 @@ const PERKS = [];
   // 開く型（11）。全部一回きり
   const opens = [
     ['自動の竿が解放される','道具屋に「竿」が並ぶ'],
-    ['自動の竿の精度（1段目）','手動を上回らない'],
-    ['自動の竿の精度（2段目）','同上'],
+    null,                                   // 開く型2・3 は落とした（決・第35版）。
+    null,                                   // **番号は動かさない。**仕様書の番号と id が対応しているため
     ['売るのが自動になる',''],
     ['道具を自動で買う','安いものから順に'],
     ['自動でも超大物を捌ける','終盤'],
@@ -478,7 +474,7 @@ const PERKS = [];
     ['主が出やすくなる','予兆の確率が上がる'],
     ['入れ食いになる','待ち時間の下限が緩む。終盤にだけ効く'],
   ];
-  opens.forEach((o,i)=>one('opn'+(i+1),'開く型',o[0],'opn'+(i+1)+'c',o[1]));
+  opens.forEach((o,i)=>{ if (o) one('opn'+(i+1),'開く型',o[0],'opn'+(i+1)+'c',o[1]); });
 
   // 持ち越し型（パークは二本だけ。10章10）
   tier('carSlot','持ち越し型','持ち越し枠が増える','carSlotBase','carSlotGrow','carSlotMax',
@@ -614,7 +610,7 @@ const COND = {
   // 周（段ごとに遠くなる）
   carSlot: ()=>['周', S.run, T.ndCarSlot*(tierOf('carSlot')+1)],
   carKeep: ()=>['周', S.run, T.ndCarKeep*(tierOf('carKeep')+1)],
-  // 無限段（opn2・opn3）は条件を置かない。**停滞周の受け皿なので、いつでも買える**
+  // 無限段は条件を置かない。**停滞周の受け皿なので、いつでも買える**
 };
 function perkCond(pk){ const f = COND[pk.id]; return f ? f() : null; }
 function perkOpen(pk){
@@ -735,9 +731,10 @@ function autoAccAt(n){
   return T.autoAccCap - (T.autoAccCap - T.autoAcc0)*pow(T.autoAccDecay, n);
 }
 function autoAcc(){
-  // 開く型2・3 が置く値と、竿（精度）の段数式の**高いほうを採る**（open.md 12節）
-  const open = has('opn3') ? T.opn3v : has('opn2') ? T.opn2v : T.autoAcc0;
-  let a = Math.max(open, autoAccAt(tierOf('rodAcc')));
+  // **竿（精度）の段数式ひとつに寄せた（決・第35版）。**
+  // 10章11 の表（周13・17）が「竿の精度3段目／7段目」を指しているので、
+  // 開く型2・3（自動の精度1段目・2段目）は古い設計の残りだった。落とした
+  let a = autoAccAt(tierOf('rodAcc'));
   return Math.min(a, 0.999);        // 手動を上回らない（100%未満）
 }
 /* **所持数の節目を、竿には掛けない（決・第34版）。**
@@ -747,10 +744,12 @@ function autoAcc(){
 function autoRodCount(){ return S.tools.rod + infRodCount(); }
 /* 持ち越し（7章・10章10）。**持ち越せるものは六つ**（道具5種と所持金）。
    枠は 0段で0枠、1段で1枠…5段で6枠。 */
-/* **0段で1枠、5段で6枠**（10章10「枠が 1 → 6」、上限は6）。
-   5段で +1 ずつ増えて6に届くので、**取る前の枠は1である。**
-   上限が6なのは「持ち越せるものが六つしかない」から（open.md 12節）。 */
-function carrySlots(){ return Math.min(TOOLS.length+1, 1 + tierOf('carSlot')); }
+/* **0段で0枠、6段で6枠（決・第35版）。**
+   相場：Cookie Clicker の持ち越し枠は **"Five purchasable slots exist (I through V)"** で、
+   **無料の枠は一つも無い**（`gamedev/references/incremental-perks.md` A-8）。
+   仕様書の「上限6（持ち越せるものが六つしかない）」に届かせるため、**段数を5→6にした。**
+   第34版までは「0段で1枠、5段で6枠」で、**取る前に一つ無料で持ち越せた。** */
+function carrySlots(){ return Math.min(TOOLS.length+1, tierOf('carSlot')); }
 // 引継ぎ割合＝基準の割合 × 一段あたりの倍率^段数。**上限は10割**
 function carryRate(baseKey){
   return Math.min(1, T[baseKey] * pow(T.carKeepMult, tierOf('carKeep')));
@@ -1198,8 +1197,6 @@ const PERK_EFF = {
   pkLineAll:  ()=>['許される外し（手動）', pc(missRatio(false)), '10割'],
   pkLineAuto: ()=>['許される外し（自動）', pc(missRatio(true)),  '10割'],
   opn1:    ()=>['道具屋の竿',       '並ばない',            '並ぶ'],
-  opn2:    ()=>['自動の竿の精度',   pc(autoAcc()),         pc(T.opn2v)],
-  opn3:    ()=>['自動の竿の精度',   pc(autoAcc()),         pc(T.opn3v)],
   opn4:    ()=>['売る',             '手で押す',            '自動'],
   opn5:    ()=>['道具を買う',       '手で押す',            '自動（入切できる）'],
   opn6:    ()=>['自動の竿と超大物', '捌けない',            '捌ける'],
@@ -1316,7 +1313,7 @@ function buyPerk(pk){
   if (pk.id==='carSlot') S.carrySel = S.carrySel.slice(0, carrySlots());
   S.rec.unlocked.push('パーク:'+pk.name
     + (pk.type==='one' ? '' : '（'+perkStep(pk)+'段目）'));
-  if (['opn1','opn2','opn3','opn4','opn5','opn6'].includes(pk.id)){
+  if (['opn1','opn4','opn5','opn6'].includes(pk.id)){
     fxAdd('auto'); S.rec.unlocked.push('自動化:'+pk.name);
   }
   syncRods(); save();
