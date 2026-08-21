@@ -64,6 +64,29 @@ add(2, '初回の転生で光るパークの数',
   (first.光る数 ? '' : `　湧き待ち：${first.湧き待ち.join('／')}`),
   first.光る数 > 0);
 
+/* 画面Aの明度（11章・第36版）。**段が少なく、一つが支配的か。**
+   相場：「段が少ないほど構造は強い（2〜4段）」「一つの段が支配的であること（50%超）」
+   （`gamedev/references/mitame.md` 014）。
+   **道具屋と上端も数に入れる** ── 目に入るもの全部で測るため。
+   実測：層ごとに別の暗さにしていたとき、**5段に散って最大31%**だった。 */
+for (const place of [0, 3, 6, 7]) {
+  const v = await pg.evaluate(p => {
+    scr = 'A'; S.place = p; S.unlockedPlace[p] = true; syncRods(); draw();
+    const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
+    const b = new Array(10).fill(0); let n = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      const L = 0.2126*d[i]/255 + 0.7152*d[i+1]/255 + 0.0722*d[i+2]/255;
+      b[Math.min(9, Math.floor(L*10))]++; n++;
+    }
+    const pct = b.map(x => x/n*100);
+    return { name: PLACES[p].n, bands: pct.filter(x => x >= 5).length,
+             top: +Math.max(...pct).toFixed(0) };
+  }, place);
+  add('画', `画面Aの明度（${v.name}）`,
+      `5%以上の帯 ${v.bands}／いちばん広い帯 ${v.top}%`,
+      v.bands <= 4 && v.top > 50);
+}
+
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
 /* 並びが「値段の安い順」から「湧いている順」に変わったので、見るものも変える。
    **湧いているものが一ページに収まるか。**収まらないと、
