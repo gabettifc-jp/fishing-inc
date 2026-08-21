@@ -64,37 +64,44 @@ add(2, '初回の転生で光るパークの数',
   (first.光る数 ? '' : `　湧き待ち：${first.湧き待ち.join('／')}`),
   first.光る数 > 0);
 
-/* 画面Aの明度（11章・第36版）。**明るいのは光源だけか。**
-   相場：「遊びに関わるものと背景を、コントラストで分離する。背景は低コントラスト、
-   遊びの要素は高コントラスト」（`gamedev/references/mitame.md`）。
-   11章の決も「地を深く落とし、光っているものだけを明の段に置く」。
+/* 画面Aの明度（11章・第36版）。**地を深く落とし、光っているものだけを明の段に置く。**
 
-   段の数を目盛りで数えるのはやめた。**10%刻みの線のどちら側かで段が割れる**ので、
-   同じ一つの暗い塊が、釣り場によって1段にも2段にも見えた（用水路 43.9/43.1）。
-   代わりに、決がそのまま言っていることを測る ──
-   1. 背景の面が全部 暗の段に入っているか（＝面では明るくしていない）
-   2. いちばん明るい画素が、浮きの灯りの近くに在るか（＝押すところがいちばん明るい） */
-for (const place of [0, 3, 6, 7]) {
+   測り方を三度変えた。最初は10%刻みで段を数えたが、**線のどちら側かで同じ塊が2段に割れた**。
+   次に隣の目盛りを繋いだら、**何を入れても通った**。
+   次に「左端の帯のいちばん明るいところが 0.30 以下」にしたが、
+   **釣り場ごとに絵が変わった途端に、0.30 という数がどこから来たのか説明できなくなった**
+   （氷の下は「白と青」なのだから、用水路より明るくて当たり前）。
+
+   **相場の言い方をそのまま測る。**
+   > 段が少ないほど構造は強い／**一つの段が支配的であること（50%超）**
+   （`gamedev/references/mitame.md` 014）
+   決はそれに加えて「支配的なのは**暗いほう**である」と言っている。だから測るのは二つ。
+
+     1. 暗い画素（L<0.20）が、絵の半分より多いか
+     2. いちばん明るい画素が、浮きの灯りの近くに在るか
+
+   **釣り場ごとに数を変えない。**変えたら、測ったことにならない。 */
+for (const place of [0,1,2,3,4,5,6,7]) {
   const v = await pg.evaluate(p => {
     scr = 'A'; S.place = p; S.unlockedPlace[p] = true; syncRods(); draw();
-    const shopW = Math.floor(cv.width*0.33), W2 = cv.width-shopW;
+    const shopW = Math.floor(cv.width*T.shopW), W2 = cv.width-shopW;
     const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
-    const L = i => 0.2126*d[i]/255 + 0.7152*d[i+1]/255 + 0.0722*d[i+2]/255;
-    // 浮きの灯りの中心（光源2）
-    const fx0 = Math.floor(W2/2), fy0 = TOPH + Math.floor((cv.height-TOPH)*T.lyFloat);
-    let bright = 0, bx = 0, by = 0, faceMax = 0;
+    // 道具屋は八つとも同じなので外し、**絵のところだけ**を測る
+    const fx0 = Math.floor(W2/2), fy0 = Math.floor(cv.height*T.lyFloat);
+    let dark = 0, n = 0, bright = 0, bx = 0, by = 0;
     for (let y = TOPH; y < cv.height; y++) for (let x = 0; x < W2; x++) {
-      const i = (y*cv.width + x)*4, l = L(i);
-      if (l > bright) { bright = l; bx = x; by = y; }
-      // 左端の帯だけを見る。**ここには竿も浮きも光源も無い**ので、面だけが測れる
-      if (x < W2*0.06) faceMax = Math.max(faceMax, l);
+      const i = (y*cv.width + x)*4;
+      const L = 0.2126*d[i]/255 + 0.7152*d[i+1]/255 + 0.0722*d[i+2]/255;
+      if (L < 0.20) dark++;
+      n++;
+      if (L > bright) { bright = L; bx = x; by = y; }
     }
-    return { name: PLACES[p].n, face: +faceMax.toFixed(2),
+    return { name: PLACES[p].n, dark: +(dark/n*100).toFixed(0),
              near: Math.round(Math.hypot(bx-fx0, by-fy0)) };
   }, place);
   add('画', `画面Aの明度（${v.name}）`,
-      `背景の面のいちばん明るいところ ${v.face}／いちばん明るい画素は浮きから ${v.near}画素`,
-      v.face <= 0.30 && v.near <= 40);
+      `暗い画素 ${v.dark}%／いちばん明るい画素は浮きから ${v.near}画素`,
+      v.dark > 50 && v.near <= 40);
 }
 
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
