@@ -110,9 +110,8 @@ for (const place of [0,1,2,3,4,5,6,7]) {
    選ぶ前にめくることになる（相場：選ばせたいなら、まず全部見せる） */
 const order = await pg.evaluate(() => {
   const open = PERKS.filter(p=>!perkDone(p) && perkOpen(p));
-  const listH = cv.height-(TOPH+132)-30, rowH = 34;
-  const perPage = Math.floor((listH-6)/rowH)*2;
-  return {湧いている: open.length, 一頁: perPage};
+  // **描くところと同じ式を呼ぶ。**別々に持つと、片方だけ古くなる
+  return {湧いている: open.length, 一頁: perkGeom().perPage};
 });
 add(3, '湧いているパークが一ページに収まるか',
   `${order.湧いている}件（1ページ ${order.一頁}件）`, order.湧いている <= order.一頁);
