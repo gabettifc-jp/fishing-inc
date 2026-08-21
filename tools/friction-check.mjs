@@ -64,27 +64,37 @@ add(2, '初回の転生で光るパークの数',
   (first.光る数 ? '' : `　湧き待ち：${first.湧き待ち.join('／')}`),
   first.光る数 > 0);
 
-/* 画面Aの明度（11章・第36版）。**段が少なく、一つが支配的か。**
-   相場：「段が少ないほど構造は強い（2〜4段）」「一つの段が支配的であること（50%超）」
-   （`gamedev/references/mitame.md` 014）。
-   **道具屋と上端も数に入れる** ── 目に入るもの全部で測るため。
-   実測：層ごとに別の暗さにしていたとき、**5段に散って最大31%**だった。 */
+/* 画面Aの明度（11章・第36版）。**明るいのは光源だけか。**
+   相場：「遊びに関わるものと背景を、コントラストで分離する。背景は低コントラスト、
+   遊びの要素は高コントラスト」（`gamedev/references/mitame.md`）。
+   11章の決も「地を深く落とし、光っているものだけを明の段に置く」。
+
+   段の数を目盛りで数えるのはやめた。**10%刻みの線のどちら側かで段が割れる**ので、
+   同じ一つの暗い塊が、釣り場によって1段にも2段にも見えた（用水路 43.9/43.1）。
+   代わりに、決がそのまま言っていることを測る ──
+   1. 背景の面が全部 暗の段に入っているか（＝面では明るくしていない）
+   2. いちばん明るい画素が、浮きの灯りの近くに在るか（＝押すところがいちばん明るい） */
 for (const place of [0, 3, 6, 7]) {
   const v = await pg.evaluate(p => {
     scr = 'A'; S.place = p; S.unlockedPlace[p] = true; syncRods(); draw();
+    const shopW = Math.floor(cv.width*0.33), W2 = cv.width-shopW;
     const d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
-    const b = new Array(10).fill(0); let n = 0;
-    for (let i = 0; i < d.length; i += 4) {
-      const L = 0.2126*d[i]/255 + 0.7152*d[i+1]/255 + 0.0722*d[i+2]/255;
-      b[Math.min(9, Math.floor(L*10))]++; n++;
+    const L = i => 0.2126*d[i]/255 + 0.7152*d[i+1]/255 + 0.0722*d[i+2]/255;
+    // 浮きの灯りの中心（光源2）
+    const fx0 = Math.floor(W2/2), fy0 = TOPH + Math.floor((cv.height-TOPH)*T.lyFloat);
+    let bright = 0, bx = 0, by = 0, faceMax = 0;
+    for (let y = TOPH; y < cv.height; y++) for (let x = 0; x < W2; x++) {
+      const i = (y*cv.width + x)*4, l = L(i);
+      if (l > bright) { bright = l; bx = x; by = y; }
+      // 左端の帯だけを見る。**ここには竿も浮きも光源も無い**ので、面だけが測れる
+      if (x < W2*0.06) faceMax = Math.max(faceMax, l);
     }
-    const pct = b.map(x => x/n*100);
-    return { name: PLACES[p].n, bands: pct.filter(x => x >= 5).length,
-             top: +Math.max(...pct).toFixed(0) };
+    return { name: PLACES[p].n, face: +faceMax.toFixed(2),
+             near: Math.round(Math.hypot(bx-fx0, by-fy0)) };
   }, place);
   add('画', `画面Aの明度（${v.name}）`,
-      `5%以上の帯 ${v.bands}／いちばん広い帯 ${v.top}%`,
-      v.bands <= 4 && v.top > 50);
+      `背景の面のいちばん明るいところ ${v.face}／いちばん明るい画素は浮きから ${v.near}画素`,
+      v.face <= 0.30 && v.near <= 40);
 }
 
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
