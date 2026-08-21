@@ -182,37 +182,35 @@ const TUNE_DEF = [
   ['edgeSec',         '13. 演出', '画面の端が光る長さ（秒。8章0）',      0.12, 'n'],
   ['dirOn',           '13. 演出', '外したとき早い／遅いを出す（8章0）',     1, 'b'],
 
-  // 10. パーク・掛かる型（15）
-  ['pkRod1c','10. パーク（掛かる型）','竿1・値段',8,'n'],
-  ['pkRod1v','10. パーク（掛かる型）','竿1・竿の伸び率を→',2.7,'n'],
-  ['pkRod2c','10. パーク（掛かる型）','竿2・値段',82,'n'],
-  ['pkRod2v','10. パーク（掛かる型）','竿2・開始時の自動の竿 +本',1,'n'],
-  ['pkRod3c','10. パーク（掛かる型）','竿3・値段',3041,'n'],
-  ['pkRod3v','10. パーク（掛かる型）','竿3・自動の竿の精度 +',0.10,'n'],
+  // 10. パーク・掛かる型（10章10）
+  // 有限段：竿（精度）1〜10段。値段は 40 × 1.7^(段−1)
+  ['pkRodAccBase','10. パーク（掛かる型）','竿の精度・1段目の値段',40,'n'],
+  ['pkRodAccGrow','10. パーク（掛かる型）','竿の精度・値段の伸び率',1.7,'n'],
+  ['pkRodAccMax', '10. パーク（掛かる型）','竿の精度・段数の上限',10,'n'],
+  ['autoAccCap',  '10. パーク（掛かる型）','自動の精度・天井（手動を上回らない）',0.85,'n'],
+  ['autoAccDecay','10. パーク（掛かる型）','自動の精度・天井へ寄る速さ',0.8,'n'],
+  // 有限段：餌3段・リール3段
   ['pkBait1c','10. パーク（掛かる型）','餌1・値段',2,'n'],
   ['pkBait1v','10. パーク（掛かる型）','餌1・餌一段の効きを→',0.04,'n'],
-  ['pkBait2c','10. パーク（掛かる型）','餌2・値段',24,'n'],
+  ['pkBait2c','10. パーク（掛かる型）','餌2・値段',25,'n'],
   ['pkBait2v','10. パーク（掛かる型）','餌2・餌の伸び率を→',1.12,'n'],
-  ['pkBait3c','10. パーク（掛かる型）','餌3・値段',2239,'n'],
+  ['pkBait3c','10. パーク（掛かる型）','餌3・値段',125,'n'],
   ['pkBait3v','10. パーク（掛かる型）','餌3・餌一段の効きを→',0.05,'n'],
-  ['pkLine1c','10. パーク（掛かる型）','糸1・値段',8,'n'],
-  ['pkLine1v','10. パーク（掛かる型）','糸1・糸一段の効きを→',0.03,'n'],
-  ['pkLine2c','10. パーク（掛かる型）','糸2・値段',82,'n'],
-  ['pkLine2v','10. パーク（掛かる型）','糸2・糸の伸び率を→',1.15,'n'],
-  ['pkLine3c','10. パーク（掛かる型）','糸3・値段',2402,'n'],
-  ['pkLine3v','10. パーク（掛かる型）','糸3・逃したとき釣れている確率',0.05,'n'],
-  ['pkReel1c','10. パーク（掛かる型）','リール1・値段',6,'n'],
+  ['pkReel1c','10. パーク（掛かる型）','リール1・値段',10,'n'],
   ['pkReel1v','10. パーク（掛かる型）','リール1・リール一段の効きを→',0.04,'n'],
-  ['pkReel2c','10. パーク（掛かる型）','リール2・値段',24,'n'],
+  ['pkReel2c','10. パーク（掛かる型）','リール2・値段',50,'n'],
   ['pkReel2v','10. パーク（掛かる型）','リール2・リールの伸び率を→',1.20,'n'],
-  ['pkReel3c','10. パーク（掛かる型）','リール3・値段',2239,'n'],
-  ['pkReel3v','10. パーク（掛かる型）','リール3・完璧の判定幅 +',0.20,'n'],
-  ['pkCool1c','10. パーク（掛かる型）','クーラー1・値段',4,'n'],
-  ['pkCool1v','10. パーク（掛かる型）','クーラー1・クーラー一段の効きを→',0.06,'n'],
-  ['pkCool2c','10. パーク（掛かる型）','クーラー2・値段',46,'n'],
-  ['pkCool2v','10. パーク（掛かる型）','クーラー2・クーラーの伸び率を→',1.17,'n'],
-  ['pkCool3c','10. パーク（掛かる型）','クーラー3・値段',2402,'n'],
-  ['pkCool3v','10. パーク（掛かる型）','クーラー3・完璧の倍率 +',0.5,'n'],
+  ['pkReel3c','10. パーク（掛かる型）','リール3・値段',250,'n'],
+  ['pkReel3v','10. パーク（掛かる型）','リール3・当たりの判定幅 +（かすりには掛からない）',0.20,'n'],
+  // 一回きり（5）
+  ['pkRod1c','10. パーク（掛かる型）','一回・竿の伸び率が下がる・値段',8,'n'],
+  ['pkRod1v','10. パーク（掛かる型）','一回・竿の伸び率を→',2.7,'n'],
+  ['pkCool2c','10. パーク（掛かる型）','一回・クーラーの伸び率が下がる・値段',25,'n'],
+  ['pkCool2v','10. パーク（掛かる型）','一回・クーラーの伸び率を→',1.17,'n'],
+  ['pkCool3c','10. パーク（掛かる型）','一回・完璧の倍率が上がる・値段',125,'n'],
+  ['pkCool3v','10. パーク（掛かる型）','一回・完璧の倍率 +',0.5,'n'],
+  ['pkLineAllc', '10. パーク（掛かる型）','一回・もう逃さない・値段',120,'n'],
+  ['pkLineAutoc','10. パーク（掛かる型）','一回・自動の竿も逃さなくなる・値段',300,'n'],
 
   // 10. パーク・開く型（10）
   ['opn1c','10. パーク（開く型）','1 自動の竿が解放される・値段',3,'n'],
@@ -234,17 +232,21 @@ const TUNE_DEF = [
   ['opn11v','10. パーク（開く型）','11 待ち時間の下限（秒まで）',0.3,'n'],
   ['dexAllBonus','10. パーク（開く型）','その釣り場を全部釣ったときの売値 +',0.10,'n'],
 
-  // 10. パーク・持ち越し型（4）
-  ['car1c','10. パーク（持ち越し型）','1 道具を一つ持ち越す・値段',4,'n'],
-  ['car2c','10. パーク（持ち越し型）','2 持ち越し枠 一つ→二つ・値段',46,'n'],
-  ['car3c','10. パーク（持ち越し型）','3 持ち越し枠 二つ→三つ・値段',4788,'n'],
-  ['car4c','10. パーク（持ち越し型）','4 開始時に所持金が残る・値段',4788,'n'],
-  ['car4v','10. パーク（持ち越し型）','4 前の周の稼ぎの割合',0.01,'n'],
-  ['carryRod','10. パーク（持ち越し型）','持ち越す割合・竿',1.00,'n'],
-  ['carryBait','10. パーク（持ち越し型）','持ち越す割合・餌',0.30,'n'],
-  ['carryLine','10. パーク（持ち越し型）','持ち越す割合・釣り糸',0.40,'n'],
-  ['carryReel','10. パーク（持ち越し型）','持ち越す割合・リール',0.50,'n'],
-  ['carryCool','10. パーク（持ち越し型）','持ち越す割合・クーラー',0.40,'n'],
+  // 10. パーク・持ち越し型（10章10。パークは二本だけ）
+  ['carSlotBase','10. パーク（持ち越し型）','持ち越し枠・1段目の値段',30,'n'],
+  ['carSlotGrow','10. パーク（持ち越し型）','持ち越し枠・値段の伸び率',2.5,'n'],
+  ['carSlotMax', '10. パーク（持ち越し型）','持ち越し枠・段数の上限',5,'n'],
+  ['carKeepBase','10. パーク（持ち越し型）','引継ぎ割合・1段目の値段',50,'n'],
+  ['carKeepGrow','10. パーク（持ち越し型）','引継ぎ割合・値段の伸び率',2.2,'n'],
+  ['carKeepMax', '10. パーク（持ち越し型）','引継ぎ割合・段数の上限',8,'n'],
+  ['carKeepMult','10. パーク（持ち越し型）','引継ぎ割合・一段あたりの倍率',1.25,'n'],
+  // 基準の引継ぎ割合（持ち越せるものは六つ。所持金は枠の六つ目）
+  ['carryRod','10. パーク（持ち越し型）','基準の割合・竿',0.60,'n'],
+  ['carryReel','10. パーク（持ち越し型）','基準の割合・リール',0.50,'n'],
+  ['carryLine','10. パーク（持ち越し型）','基準の割合・釣り糸',0.40,'n'],
+  ['carryCool','10. パーク（持ち越し型）','基準の割合・クーラー',0.40,'n'],
+  ['carryBait','10. パーク（持ち越し型）','基準の割合・餌',0.30,'n'],
+  ['carryMoney','10. パーク（持ち越し型）','基準の割合・所持金',0.20,'n'],
 
   // 10. 効果の天井
   ['capHit',   '10. 効果の天井', '判定の幅・当たり（ミリ秒まで）',       120,  'n'],
@@ -380,22 +382,45 @@ const TOOLS = [
 ];
 
 // 7章 パーク 29個
+/* パークの一覧（10章10）。**値は一つもここに書かない。**全部つまみから引く。
+   三つの持ち方がある。
+     一回きり  … S.perks[id] が真になったら終わり
+     段数型    … S.tier[key] が段数。値段は 1段目 × 伸び率^(段−1)
+     無限段    … 段数に上限が無い。**取り切らないので、一覧から消えない**
+   段数型と無限段は「次の一段」を一行として出す。 */
 const PERKS = [];
 (function(){
-  const mk = (id,kind,name,costKey,note)=>PERKS.push({id,kind,name,costKey,note});
-  const axes = [
-    ['Rod','竿'],['Bait','餌'],['Line','釣り糸'],['Reel','リール'],['Cool','クーラー'],
-  ];
-  const eff = {
-    Rod:['竿の値段の伸び率が下がる','開始時の自動の竿が1本増える','自動の竿の精度が上がる'],
-    Bait:['餌一段の効きが上がる','餌の値段の伸び率が下がる','餌一段の効きがさらに上がる'],
-    Line:['糸一段の効きが上がる','糸の値段の伸び率が下がる','逃したときに釣れている確率が上がる'],
-    Reel:['リール一段の効きが上がる','リールの値段の伸び率が下がる','完璧の判定幅が広がる'],
-    Cool:['クーラー一段の効きが上がる','クーラーの値段の伸び率が下がる','完璧の倍率が上がる'],
-  };
-  for (const [key,jp] of axes)
-    for (let s=1;s<=3;s++)
-      mk('pk'+key+s,'掛かる型',jp+' '+s+'段',`pk${key}${s}c`,eff[key][s-1]);
+  const one  = (id,kind,name,costKey,note)=>
+    PERKS.push({id,kind,name,costKey,note,type:'one'});
+  const tier = (id,kind,name,baseKey,growKey,maxKey,note)=>
+    PERKS.push({id,kind,name,baseKey,growKey,maxKey,note,type:'tier'});
+  const inf  = (id,kind,name,baseKey,growKey,note)=>
+    PERKS.push({id,kind,name,baseKey,growKey,note,type:'inf'});
+
+  // 掛かる型・無限段（2軸）。**停滞周に一段ずつ買うもの**（10章11）
+  inf('infCool','掛かる型','クーラー／売値の恒久倍率','infCoolBase','infCoolGrow',
+      '一段ごとに売値 ×'+'（効果の伸び率）');
+  inf('infRod','掛かる型','竿／開始時の本数','infRodBase','infRodGrow',
+      '一段ごとに本数が増える');
+
+  // 掛かる型・有限段
+  tier('rodAcc','掛かる型','竿／自動の精度','pkRodAccBase','pkRodAccGrow','pkRodAccMax',
+       '手動を上回らない');
+  one('pkBait1','掛かる型','餌 1段','pkBait1c','');
+  one('pkBait2','掛かる型','餌 2段','pkBait2c','');
+  one('pkBait3','掛かる型','餌 3段','pkBait3c','');
+  one('pkReel1','掛かる型','リール 1段','pkReel1c','');
+  one('pkReel2','掛かる型','リール 2段','pkReel2c','');
+  one('pkReel3','掛かる型','リール 3段','pkReel3c','かすりには掛からない');
+
+  // 掛かる型・一回きり（5）
+  one('pkRod1','掛かる型','竿の値段の伸び率が下がる','pkRod1c','');
+  one('pkCool2','掛かる型','クーラーの値段の伸び率が下がる','pkCool2c','');
+  one('pkCool3','掛かる型','完璧の倍率が上がる','pkCool3c','');
+  one('pkLineAll','掛かる型','もう逃さない','pkLineAllc','外しても逃さなくなる');
+  one('pkLineAuto','掛かる型','自動の竿も逃さなくなる','pkLineAutoc','上の効果が自動にも及ぶ');
+
+  // 開く型（11）。全部一回きり
   const opens = [
     ['自動の竿が解放される','道具屋に「竿」が並ぶ'],
     ['自動の竿の精度（1段目）','手動を上回らない'],
@@ -409,14 +434,13 @@ const PERKS = [];
     ['主が出やすくなる','予兆の確率が上がる'],
     ['入れ食いになる','待ち時間の下限が緩む。終盤にだけ効く'],
   ];
-  opens.forEach((o,i)=>mk('opn'+(i+1),'開く型',o[0],'opn'+(i+1)+'c',o[1]));
-  const carr = [
-    ['道具を一つ持ち越す','枠が一つ。毎回選び直せる'],
-    ['持ち越し枠（1段目）','一つ → 二つ'],
-    ['持ち越し枠（2段目）','二つ → 三つ'],
-    ['開始時に所持金が残る','前の周の稼ぎの一部'],
-  ];
-  carr.forEach((o,i)=>mk('car'+(i+1),'持ち越し型',o[0],'car'+(i+1)+'c',o[1]));
+  opens.forEach((o,i)=>one('opn'+(i+1),'開く型',o[0],'opn'+(i+1)+'c',o[1]));
+
+  // 持ち越し型（パークは二本だけ。10章10）
+  tier('carSlot','持ち越し型','持ち越し枠が増える','carSlotBase','carSlotGrow','carSlotMax',
+       '枠は六つまで（持ち越せるものが六つしかない）');
+  tier('carKeep','持ち越し型','引継ぎ割合が上がる','carKeepBase','carKeepGrow','carKeepMax',
+       '基準の割合に倍率が掛かる。上限は10割');
 })();
 
 /* ---------------------------------------------------------------------------
@@ -437,6 +461,7 @@ function newState(){
     tools:{bait:0,line:0,reel:0,cool:0,rod:0},
     perks:{},                       // id -> true
     inf:{cool:0, rod:0},            // 無限段の段数（クーラー売値・竿本数）
+    tier:{rodAcc:0, carSlot:0, carKeep:0},   // 段数型のパークの段数（10章10）
     dex:FISH.map(r=>r.map(()=>false)),
     carrySel:[],                    // 次の周へ持ち越す道具のid
     lastEarn:0,
@@ -468,12 +493,30 @@ let creel = 0;                      // 売る前の釣果（円）
    派生値（すべてつまみから計算する）
    ------------------------------------------------------------------------- */
 const has = id => !!S.perks[id];
+/* 段数型・無限段のパーク（10章10）。**値段は 1段目 × 伸び率^(すでに持っている段数)。** */
+const tierOf = k => (S.tier && S.tier[k]) || 0;
+const infOf  = k => (S.inf  && S.inf[k])  || 0;
+function perkStep(pk){                       // いま持っている段数
+  if (pk.type==='tier') return tierOf(pk.id);
+  if (pk.type==='inf')  return infOf(pk.id==='infCool'?'cool':'rod');
+  return has(pk.id) ? 1 : 0;
+}
+function perkMax(pk){                        // 段数の上限。無限段は無し
+  if (pk.type==='tier') return T[pk.maxKey];
+  if (pk.type==='inf')  return Infinity;
+  return 1;
+}
+function perkDone(pk){ return perkStep(pk) >= perkMax(pk); }
+function perkCost(pk){
+  if (pk.type==='one') return T[pk.costKey];
+  return T[pk.baseKey] * pow(T[pk.growKey], perkStep(pk));
+}
 const pow = (b,e)=>Math.pow(b,e);
 
 function toolGrow(t){
   if (t==='rod')  return has('pkRod1') ? T.pkRod1v : T.rodGrow;
   if (t==='bait') return has('pkBait2')? T.pkBait2v: T.baitGrow;
-  if (t==='line') return has('pkLine2')? T.pkLine2v: T.lineGrow;
+  if (t==='line') return T.lineGrow;
   if (t==='reel') return has('pkReel2')? T.pkReel2v: T.reelGrow;
   if (t==='cool') return has('pkCool2')? T.pkCool2v: T.coolGrow;
   return 1;
@@ -484,9 +527,10 @@ function toolBase(t){
 function toolPrice(t){ return toolBase(t) * pow(toolGrow(t), S.tools[t]); }
 
 function baitEff(){ return has('pkBait3') ? T.pkBait3v : has('pkBait1') ? T.pkBait1v : T.baitEff; }
-function lineEff(){ return has('pkLine1') ? T.pkLine1v : T.lineEff; }
+function lineEff(){ return T.lineEff; }
 function reelEff(){ return has('pkReel1') ? T.pkReel1v : T.reelEff; }
-function coolEff(){ return has('pkCool1') ? T.pkCool1v : T.coolEff; }
+// クーラー一段の効きは動かさない（10章10）。伸びは売値の恒久倍率で作る
+function coolEff(){ return T.coolEff; }
 
 function deepMult(p){                                   // p は 0..7
   return [T.deep12,T.deep12,T.deep34,T.deep34,T.deep56,T.deep56,T.deep78,T.deep78][p];
@@ -501,7 +545,13 @@ function windows(){
   grz = Math.min(grz, T.capGraze);
   return {hit, graze: Math.max(grz, hit)};
 }
-function missRatio(){ return Math.min(T.missRatio0 * pow(1+lineEff(), S.tools.line), T.capMiss); }
+/* 「逃す」になる外しの割合（10章「効果の天井」）。
+   **道具だけなら8割。パーク「もう逃さない」で10割になり、そこで完結する。**
+   自動の竿にも及ぶのは「自動の竿も逃さなくなる」を取ってから。 */
+function missRatio(auto){
+  if (has('pkLineAll') && (!auto || has('pkLineAuto'))) return 1;
+  return Math.min(T.missRatio0 * pow(1+lineEff(), S.tools.line), T.capMiss);
+}
 function waitRange(){
   const f = pow(1-baitEff(), S.tools.bait);
   // 「入れ食いになる」を取ると床が緩む（開く型11）
@@ -520,10 +570,13 @@ function infPrice(axis){
 }
 function infCoolMult(){ return pow(T.infCoolEff, (S.inf&&S.inf.cool)||0); }
 // 自動の竿の本数（10章10の式）。0段は0本、一段ごとに必ず1本は増える
+function infRodCountAt(n){
+  if (n<=0) return 0;
+  return Math.max(n, Math.floor(pow(T.infRodEff, n)));   // 一段ごとに必ず1本は増える
+}
 function infRodCount(){
   const n = (S.inf&&S.inf.rod)||0;
-  if (n<=0) return 0;
-  return Math.max(n, Math.floor(pow(T.infRodEff, n)));
+  return infRodCountAt(n);
 }
 // 図鑑を揃えたか（クラーケン以外の71種）。揃うと恒久倍率が一段跳ねる
 function dexDone(){
@@ -544,13 +597,27 @@ function perfectMult(){ return T.perfectMult + (has('pkCool3') ? T.pkCool3v : 0)
 function comboMult(){
   return Math.min(T.comboBase + T.comboStep*Math.max(0,combo-1), T.comboMax);
 }
+// 10章10：そこそこが出る確率 ＝ 天井 −（天井 − 初期）× 寄る速さ^段数
+function autoAccAt(n){
+  return T.autoAccCap - (T.autoAccCap - T.autoAcc0)*pow(T.autoAccDecay, n);
+}
 function autoAcc(){
-  let a = has('opn3') ? T.opn3v : has('opn2') ? T.opn2v : T.autoAcc0;
-  if (has('pkRod3')) a += T.pkRod3v;
+  // 開く型2・3 が置く値と、竿（精度）の段数式の**高いほうを採る**（open.md 12節）
+  const open = has('opn3') ? T.opn3v : has('opn2') ? T.opn2v : T.autoAcc0;
+  let a = Math.max(open, autoAccAt(tierOf('rodAcc')));
   return Math.min(a, 0.999);        // 手動を上回らない（100%未満）
 }
-function autoRodCount(){ return S.tools.rod + (has('pkRod2') ? T.pkRod2v : 0) + infRodCount(); }
-function carrySlots(){ return has('car3')?3 : has('car2')?2 : has('car1')?1 : 0; }
+function autoRodCount(){ return S.tools.rod + infRodCount(); }
+/* 持ち越し（7章・10章10）。**持ち越せるものは六つ**（道具5種と所持金）。
+   枠は 0段で0枠、1段で1枠…5段で6枠。 */
+/* **0段で1枠、5段で6枠**（10章10「枠が 1 → 6」、上限は6）。
+   5段で +1 ずつ増えて6に届くので、**取る前の枠は1である。**
+   上限が6なのは「持ち越せるものが六つしかない」から（open.md 12節）。 */
+function carrySlots(){ return Math.min(TOOLS.length+1, 1 + tierOf('carSlot')); }
+// 引継ぎ割合＝基準の割合 × 一段あたりの倍率^段数。**上限は10割**
+function carryRate(baseKey){
+  return Math.min(1, T[baseKey] * pow(T.carKeepMult, tierOf('carKeep')));
+}
 function omenRate(){ return has('opn10') ? T.omenRate2 : T.omenRate; }
 function unitPrice(p,g){
   const base=[T.price0,T.price1,T.price2,T.price3,T.price4][g];
@@ -805,21 +872,19 @@ function judgeSymbol(r, i, dt, kindOk){
 function finishChart(r){
   let result;
   if (r.auto){
-    result = r.autoResult==='soso' ? 'soso' : 'miss';
+    // 「自動の竿も逃さなくなる」を取ると、自動の外しも逃さない（10章の天井）
+    result = (r.autoResult==='soso' || missRatio(true)>=1) ? 'soso' : 'miss';
   } else {
     const n = r.tl.syms.length;
     for (let i=0;i<n;i++) if (!r.res[i]) r.res[i]='miss';
     const extra = r.extra||0;                             // 余計に押した回数も外しに数える
     const mis = r.res.filter(x=>x==='miss').length + extra;
     const slip = n - r.res.filter(x=>x==='hit').length + extra;   // 取りこぼし＝当たり以外
-    if (mis/n > missRatio())          result='miss';      // 境界は「超える」。ちょうどは許す
+    if (mis/n > missRatio(false))     result='miss';      // 境界は「超える」。ちょうどは許す
     else if (slip <= slipAllow(n))    result='perfect';
     else                              result='soso';
   }
-  // 糸パーク3段：逃したときに稀に釣れている
-  let saved=false;
-  if (result==='miss' && has('pkLine3') && Math.random() < T.pkLine3v){ result='soso'; saved=true; }
-  applyResult(r, result, saved);
+  applyResult(r, result, false);
   r.phase='idle'; r.t=0;
 }
 function applyResult(r, result, saved){
@@ -929,7 +994,7 @@ function toolEff(item){
     const a = waitRange(), b = sample(waitRange);
     now = a.lo.toFixed(1)+'〜'+a.hi.toFixed(1)+'秒'; next = b.lo.toFixed(1)+'〜'+b.hi.toFixed(1)+'秒';
   } else if (t === 'line'){
-    label = '許される外し'; now = pc(missRatio()); next = pc(sample(missRatio));
+    label = '許される外し'; now = pc(missRatio(false)); next = pc(sample(()=>missRatio(false)));
   } else if (t === 'reel'){
     label = '当たりの幅';
     now = Math.round(windows().hit)+'ms'; next = Math.round(sample(windows).hit)+'ms';
@@ -953,22 +1018,30 @@ function toolEff(item){
 const pc  = v => (v*100).toFixed(v*100<10?1:0)+'%';
 const mul = v => '×'+(+v).toFixed(2);
 const PERK_EFF = {
-  pkRod1:  ()=>['竿の値段の伸び率', mul(toolGrow('rod')),  mul(T.pkRod1v)],
-  pkRod2:  ()=>['開始時の自動の竿', '+0本',                '+'+T.pkRod2v+'本'],
-  pkRod3:  ()=>['自動の竿の精度',   pc(autoAcc()),         pc(autoAcc()+T.pkRod3v)],
+  // 無限段（2軸）。**次の一段を取ると何がどうなるか**を出す
+  infCool: ()=>['売値の恒久倍率', mul(infCoolMult()),
+                                  mul(infCoolMult()*T.infCoolEff)],
+  infRod:  ()=>['開始時の自動の竿', infRodCount()+'本',
+                                  infRodCountAt(infOf('rod')+1)+'本'],
+  // 段数型
+  rodAcc:  ()=>['自動の竿の精度',   pc(autoAcc()),         pc(autoAccAt(tierOf('rodAcc')+1))],
+  carSlot: ()=>['持ち越しの枠',     carrySlots()+'枠',
+                                  Math.min(TOOLS.length+1, carrySlots()+1)+'枠'],
+  carKeep: ()=>['引継ぎ割合（竿）', pc(carryRate('carryRod')),
+                                  pc(Math.min(1, T.carryRod*pow(T.carKeepMult, tierOf('carKeep')+1)))],
+  // 有限段・一回きり
   pkBait1: ()=>['餌一段の効き',     pc(baitEff()),         pc(T.pkBait1v)],
   pkBait2: ()=>['餌の値段の伸び率', mul(toolGrow('bait')), mul(T.pkBait2v)],
   pkBait3: ()=>['餌一段の効き',     pc(baitEff()),         pc(T.pkBait3v)],
-  pkLine1: ()=>['糸一段の効き',     pc(lineEff()),         pc(T.pkLine1v)],
-  pkLine2: ()=>['糸の値段の伸び率', mul(toolGrow('line')), mul(T.pkLine2v)],
-  pkLine3: ()=>['逃しても釣れている', '0%',                pc(T.pkLine3v)],
   pkReel1: ()=>['リール一段の効き', pc(reelEff()),         pc(T.pkReel1v)],
   pkReel2: ()=>['リールの伸び率',   mul(toolGrow('reel')), mul(T.pkReel2v)],
   pkReel3: ()=>['当たりの判定幅',   Math.round(windows().hit)+'ms',
                                     Math.round(windows().hit*(1+T.pkReel3v))+'ms'],
-  pkCool1: ()=>['クーラー一段の効き', pc(coolEff()),       pc(T.pkCool1v)],
+  pkRod1:  ()=>['竿の値段の伸び率', mul(toolGrow('rod')),  mul(T.pkRod1v)],
   pkCool2: ()=>['クーラーの伸び率', mul(toolGrow('cool')), mul(T.pkCool2v)],
   pkCool3: ()=>['完璧の倍率',       mul(perfectMult()),    mul(perfectMult()+T.pkCool3v)],
+  pkLineAll:  ()=>['許される外し（手動）', pc(missRatio(false)), '10割'],
+  pkLineAuto: ()=>['許される外し（自動）', pc(missRatio(true)),  '10割'],
   opn1:    ()=>['道具屋の竿',       '並ばない',            '並ぶ'],
   opn2:    ()=>['自動の竿の精度',   pc(autoAcc()),         pc(T.opn2v)],
   opn3:    ()=>['自動の竿の精度',   pc(autoAcc()),         pc(T.opn3v)],
@@ -980,10 +1053,6 @@ const PERK_EFF = {
   opn9:    ()=>['未発見の出やすさ', mul(1),                mul(T.opn9v)],
   opn10:   ()=>['予兆の確率',       pc(T.omenRate),        pc(T.omenRate2)],
   opn11:   ()=>['待ち時間の下限',   T.capWaitLo+'秒',      T.opn11v+'秒'],
-  car1:    ()=>['持ち越しの枠',     carrySlots()+'枠',     '1枠'],
-  car2:    ()=>['持ち越しの枠',     carrySlots()+'枠',     '2枠'],
-  car3:    ()=>['持ち越しの枠',     carrySlots()+'枠',     '3枠'],
-  car4:    ()=>['開始時の所持金',   '0円',                 '前の周の '+pc(T.car4v)],
 };
 function perkEff(pk){
   const f = PERK_EFF[pk.id];
@@ -1081,11 +1150,17 @@ function gotoPlace(p){
   bgmStart();
 }
 function buyPerk(pk){
-  if (has(pk.id)) return;
-  const c = T[pk.costKey];
+  if (perkDone(pk)) return;
+  const c = perkCost(pk);
   if (S.pres < c) return;
-  S.pres -= c; S.perks[pk.id] = true;
-  S.rec.unlocked.push('パーク:'+pk.name);
+  S.pres -= c;
+  if (pk.type==='one')      S.perks[pk.id] = true;
+  else if (pk.type==='tier')S.tier[pk.id] = tierOf(pk.id) + 1;
+  else                      S.inf[pk.id==='infCool'?'cool':'rod'] = perkStep(pk) + 1;
+  // 枠を減らす向きには動かないが、上限を超えて選んだままにはしない
+  if (pk.id==='carSlot') S.carrySel = S.carrySel.slice(0, carrySlots());
+  S.rec.unlocked.push('パーク:'+pk.name
+    + (pk.type==='one' ? '' : '（'+perkStep(pk)+'段目）'));
   if (['opn1','opn2','opn3','opn4','opn5','opn6'].includes(pk.id)){
     fxAdd('auto'); S.rec.unlocked.push('自動化:'+pk.name);
   }
@@ -1112,12 +1187,14 @@ function doPrestige(){
   // 持ち越し（7章）。選んだ道具の段数を割合で持ち越す
   const keep = {bait:0,line:0,reel:0,cool:0,rod:0};
   const sel = S.carrySel.slice(0, carrySlots());
+  let money = 0;
   for (const id of sel){
+    if (id==='money'){ money = Math.floor(S.money * carryRate('carryMoney')); continue; }
     const t = TOOLS.find(x=>x.id===id);
-    keep[id] = Math.floor(S.tools[id] * T[t.carry]);
+    keep[id] = Math.floor(S.tools[id] * carryRate(t.carry));   // 端数は切り捨て（10章）
   }
   S.tools = keep;
-  S.money = has('car4') ? Math.floor(S.lastEarn * T.car4v) : 0;
+  S.money = money;
   creel = 0; combo = 0; bestComboRun = 0; omenCasts = 0; omenUp = 0; omenCool = 0;
   S.run++; S.rec = newRunRecord(S.run);
   fxAdd('prestige');
@@ -1620,15 +1697,19 @@ function drawB(){
   txt('持ち越し（'+S.carrySel.length+'／'+slots+'枠）', 12, TOPH+88, 12, '#9fb6c4');
   let x=12;
   ctx.font='11px monospace';
-  for (const t of TOOLS){
-    const on = S.carrySel.includes(t.id);
-    const w = Math.ceil(ctx.measureText(t.n+' '+S.tools[t.id]).width)+14;
-    box(x, TOPH+104, w, 20, on?'#27404d':'#16232a','#2b3b46');
-    txt(t.n+' '+S.tools[t.id], x+5, TOPH+107, 11, slots?'#e8eef2':'#5b6d78');
+  // **持ち越せるものは六つ。道具5種と所持金**（7章。所持金は独立のパークにしない）
+  const carryables = TOOLS.map(t=>({id:t.id, n:t.n, now:S.tools[t.id]+'段', rate:t.carry}))
+    .concat([{id:'money', n:'所持金', now:yen(S.money), rate:'carryMoney'}]);
+  for (const c of carryables){
+    const on = S.carrySel.includes(c.id);
+    const label = c.n+' '+c.now+' →'+pc(carryRate(c.rate));
+    const w = Math.ceil(ctx.measureText(label).width)+14;
+    box(x, TOPH+104, w, 20, on?'#27404d':'#16232a', on?'#7fd6a0':'#2b3b46');
+    txt(label, x+5, TOPH+107, 11, slots?(on?'#e8eef2':'#9fb6c4'):'#5b6d78');
     if (slots) hs(x, TOPH+104, w, 20, ()=>{
-      const i=S.carrySel.indexOf(t.id);
+      const i=S.carrySel.indexOf(c.id);
       if (i>=0) S.carrySel.splice(i,1);
-      else if (S.carrySel.length<slots) S.carrySel.push(t.id);
+      else if (S.carrySel.length<slots) S.carrySel.push(c.id);
     });
     x += w+4;
   }
@@ -1638,22 +1719,34 @@ function drawB(){
   box(8, listY, cv.width-16, listH, '#0f191f', '#2b3b46');
   const rowH = 34, perCol = Math.floor((listH-6)/rowH);   // 効果の一行ぶん高くする
   const cols = 2, colW = (cv.width-24)/cols;
-  // 安い順に並べ、取得済みは後ろへ送る（9章）。一覧そのものが「次に取るもの」を助言する
+  // 安い順に並べ、取り切ったものは後ろへ送る（9章）。
+  // **一覧そのものが「次に取るもの」を助言する。**
+  // 段数型・無限段は「次の一段」の値段で並ぶので、買うたびに列の中を後ろへ動く
   const order = PERKS.slice().sort((a,b)=>{
-    const oa = has(a.id)?1:0, ob = has(b.id)?1:0;
+    const oa = perkDone(a)?1:0, ob = perkDone(b)?1:0;
     if (oa!==ob) return oa-ob;
-    return T[a.costKey]-T[b.costKey];
+    return perkCost(a)-perkCost(b);
   });
+  // **いちばん安くて買えるものを一つだけ指す。**上から読む順が目で分かるように
+  const nextI = order.findIndex(pk=>!perkDone(pk) && S.pres>=perkCost(pk));
   const shown = order.slice(perkScroll, perkScroll+perCol*cols);
   shown.forEach((pk,i)=>{
     const c = Math.floor(i/perCol), rI = i%perCol;
     const px = 12 + c*colW, py = listY+4 + rI*rowH;
-    const owned = has(pk.id), cost = T[pk.costKey], can = !owned && S.pres>=cost;
-    box(px, py, colW-8, rowH-2, owned?'#1c3a2c':can?'#1a2c35':'#141d23','#2b3b46');
-    txt((owned?'✓ ':'')+pk.kind+'／'+pk.name, px+4, py+3, 10, owned?'#7fd6a0':can?'#e8eef2':'#5b6d78');
-    txt(owned?'':String(cost), px+colW-12, py+3, 10, can?'#e8c05a':'#5b6d78','right');
+    const done = perkDone(pk), cost = perkCost(pk), can = !done && S.pres>=cost;
+    const isNext = (perkScroll+i) === nextI;
+    box(px, py, colW-8, rowH-2, done?'#1c3a2c':can?'#1a2c35':'#141d23',
+        isNext?'#e8c05a':'#2b3b46');
+    // 段数型は「◯段目」を名前の後ろに出す。取り切ったら「済」
+    const step = perkStep(pk), max = perkMax(pk);
+    const tag = pk.type==='one' ? (done?'✓ ':'')
+              : done ? '✓ '
+              : (step+1)+'段目'+(max===Infinity?'':'／'+max)+'　';
+    txt(tag+pk.kind+'／'+pk.name, px+4, py+3, 10,
+        done?'#7fd6a0':can?'#e8eef2':'#5b6d78');
+    txt(done?'' : Math.ceil(cost)+'　', px+colW-12, py+3, 10, can?'#e8c05a':'#5b6d78','right');
     // 何がどれだけ上がるか（9章）
-    txt(perkEff(pk), px+4, py+17, 9, owned?'#5b8a72':can?'#9fb6c4':'#4a5a63');
+    txt(perkEff(pk), px+4, py+17, 9, done?'#5b8a72':can?'#9fb6c4':'#4a5a63');
     if (can) hs(px,py,colW-8,rowH-2, ()=>buyPerk(pk));
   });
   const btn=(label,x,fn)=>{ box(x,cv.height-24,80,18,'#1d2f39','#2b3b46');

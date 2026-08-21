@@ -158,11 +158,11 @@ async function runOnce(page, skill, seed, sets, trace) {
         const w = windows(), ph = pWithin(w.hit), pg = pWithin(w.graze) - ph;
         let hit = 0, mis = 0;
         for (let i = 0; i < n; i++) { const u = rnd(); if (u < ph) hit++; else if (u >= ph + pg) mis++; }
-        if (mis / n > missRatio()) result = 'miss';
+        if (mis / n > missRatio(false)) result = 'miss';
         else if (n - hit <= slipAllow(n)) result = 'perfect';
         else result = 'soso';
       }
-      if (result === 'miss' && has('pkLine3') && rnd() < T.pkLine3v) result = 'soso';
+      // 「もう逃さない」は missRatio(false) が10割を返すので、ここには要らない
       return { grade, n, dur, result };
     }
     // 予兆は時間で来る（4章）。一投ぶんの秒数のあいだに立つ確率で近似する
@@ -216,11 +216,10 @@ async function runOnce(page, skill, seed, sets, trace) {
       for (const it of shopList())
         if (it.kind === 'move') best = Math.min(best, Math.max(0,(it.price - S.money))/inc);
       // 次に狙うパーク（経験で買う）までの見込み
-      const avail = PERKS.filter(pk => !has(pk.id));
       {
-        const cheapest = Math.min(
-          avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity,
-          infPrice('cool'), infPrice('rod'));
+        // 無限段も段数型も PERKS に入っている。値段は本体の perkCost が出す
+        const avail = PERKS.filter(pk => !perkDone(pk));
+        const cheapest = avail.length ? Math.min(...avail.map(pk => perkCost(pk))) : Infinity;
         const need = cheapest - S.pres;
         const cur  = Math.max(1e-9, presGain(earn));
         if (cur < need) best = Math.min(best, t * (Math.pow(need/cur, 1/T.presExp) - 1));
@@ -249,18 +248,23 @@ async function runOnce(page, skill, seed, sets, trace) {
       const keepGain = (inc * ASSUME.lookSec) / Math.max(1, earn);
 
       // 転生したら、パークを何段ぶん買えるか → 効果の倍率
-      let pres = S.pres + presGain(earn), tiers = 0, ic = S.inf.cool, ir = S.inf.rod;
-      const taken = {};
+      // **本体を触らずに数える。**買ったつもりの段数を手元だけで進める
+      let pres = S.pres + presGain(earn), tiers = 0;
+      const extra = {};                       // id -> 手元で足した段数
+      const costOf = pk => {
+        const e = extra[pk.id] || 0;
+        if (pk.type === 'one') return T[pk.costKey];
+        return T[pk.baseKey] * Math.pow(T[pk.growKey], perkStep(pk) + e);
+      };
+      const doneOf = pk => perkStep(pk) + (extra[pk.id]||0) >= perkMax(pk);
       for (let k = 0; k < 300; k++) {
-        const avail = PERKS.filter(pk => !has(pk.id) && !taken[pk.id]);
-        const pc = T.infCoolBase * Math.pow(T.infCoolGrow, ic);
-        const pr = T.infRodBase  * Math.pow(T.infRodGrow,  ir);
-        const cheapPerk = avail.length ? Math.min(...avail.map(pk => T[pk.costKey])) : Infinity;
-        const m = Math.min(cheapPerk, pc, pr);
+        const avail = PERKS.filter(pk => !doneOf(pk));
+        if (!avail.length) break;
+        let pick = avail[0];
+        for (const pk of avail) if (costOf(pk) < costOf(pick)) pick = pk;
+        const m = costOf(pick);
         if (pres < m) break;
-        pres -= m; tiers++;
-        if (m === pc) ic++; else if (m === pr) ir++;
-        else taken[avail.find(pk => T[pk.costKey] === cheapPerk).id] = true;
+        pres -= m; tiers++; extra[pick.id] = (extra[pick.id]||0) + 1;
       }
       const presMult = Math.pow(T.infCoolEff, tiers) - 1;
       return presMult > keepGain;
@@ -288,20 +292,13 @@ async function runOnce(page, skill, seed, sets, trace) {
     /* --- パークを取る（転生のとき。安いものから順に） -------------------- */
     function buyPerks() {
       for (let guard = 0; guard < 500; guard++) {
-        const avail = PERKS.filter(p => !has(p.id) && S.pres >= T[p.costKey]);
-        // 無限段も候補に入れる（安いほうから買う）
-        const infs = [];
-        for (const ax of ['cool','rod']){ const pr = infPrice(ax); if (S.pres >= pr) infs.push({ax, pr}); }
-        if (!avail.length && !infs.length) break;
-        const cheapPerk = avail.length ? Math.min(...avail.map(p=>T[p.costKey])) : Infinity;
-        const cheapInf  = infs.length ? Math.min(...infs.map(x=>x.pr)) : Infinity;
-        if (cheapInf < cheapPerk){
-          const pick = infs.find(x=>x.pr===cheapInf);
-          S.pres -= Math.round(cheapInf); S.inf[pick.ax]++;
-        } else {
-          avail.sort((a, b) => T[a.costKey] - T[b.costKey]);
-          buyPerk(avail[0]);
-        }
+        // 無限段も段数型も PERKS に入っている。**安いものから順に買う**
+        const avail = PERKS.filter(p => !perkDone(p) && S.pres >= perkCost(p));
+        if (!avail.length) break;
+        avail.sort((a, b) => perkCost(a) - perkCost(b));
+        const before = S.pres;
+        buyPerk(avail[0]);
+        if (S.pres === before) break;          // 買えなかったら止める（無限に回らないように）
       }
     }
 
@@ -394,12 +391,19 @@ async function runOnce(page, skill, seed, sets, trace) {
       if (cleared) { clearSec = totalSec; break; }
       // 転生
       S.pres += presGot;
+      // 持ち越し（7章）。**枠は六つまで。所持金が六つ目**
       const keep = { bait:0, line:0, reel:0, cool:0, rod:0 };
       const slots = carrySlots();
-      const order = TOOLS.slice().sort((a,b)=> S.tools[b.id]*T[b.carry] - S.tools[a.id]*T[a.carry]);
-      for (const t2 of order.slice(0, slots)) keep[t2.id] = Math.floor(S.tools[t2.id] * T[t2.carry]);
+      const cands = TOOLS.map(t2 => ({id:t2.id, val:S.tools[t2.id]*carryRate(t2.carry), rate:t2.carry}))
+        .concat([{id:'money', val:0, rate:'carryMoney'}]);
+      cands.sort((a,b)=> b.val - a.val);
+      let money = 0;
+      for (const c of cands.slice(0, slots)){
+        if (c.id === 'money') money = Math.floor(S.money * carryRate('carryMoney'));
+        else keep[c.id] = Math.floor(S.tools[c.id] * carryRate(c.rate));
+      }
       S.tools = keep;
-      S.money = has('car4') ? Math.floor(earn * T.car4v) : 0;
+      S.money = money;
       buyPerks();
       if (totalSec > ASSUME.maxTotalSec) break;
     }

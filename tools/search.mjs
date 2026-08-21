@@ -2,10 +2,16 @@
 import { execFileSync } from 'node:child_process';
 const MOVE = ['move2','move3','move4','move5','move6','move7','move8'];
 const MOVE0 = [3000,50000,1e6,3e7,1e9,5e10,3e12];
-const PERK = { pkRod1c:8,pkRod2c:40,pkRod3c:200,pkBait1c:5,pkBait2c:25,pkBait3c:125,
-  pkLine1c:5,pkLine2c:25,pkLine3c:125,pkReel1c:10,pkReel2c:50,pkReel3c:250,
-  pkCool1c:5,pkCool2c:25,pkCool3c:125,opn1c:15,opn2c:40,opn3c:150,opn4c:20,opn5c:60,
-  opn6c:400,opn7c:10,opn8c:50,opn9c:80,opn10c:100,car1c:30,car2c:90,car3c:250,car4c:60 };
+/* **この表は古い。**2026-08-21 にパークを 10章10 に合わせて組み直したので、
+   ここに並んでいる id の多く（pkRod2 / pkLine1〜3 / pkCool1 / car1〜4）は
+   もう存在しない。**段数型と無限段も入っていない。**
+   使う前に、本体の PERKS から作り直すこと。 */
+const PERK = null;
+if (!PERK) {
+  console.log('この道具は使えない。パークの一覧が 2026-08-21 に変わった。');
+  console.log('本体の PERKS から作り直すまで、探索の結果は当てにならない。');
+  process.exit(1);
+}
 
 function sets(mv, pk){
   const a=[];

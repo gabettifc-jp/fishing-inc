@@ -42,16 +42,16 @@ for (const [k,v] of Object.entries(back))
 const first = await pg.evaluate(() => {
   S = newState(); S.rec = newRunRecord(1); S.rec.earn = 200000; scr='A'; syncRods();
   endRun();
-  const lit = PERKS.filter(p => !has(p.id) && S.pres >= T[p.costKey]);
-  return {pres: S.pres, 光る数: lit.length, 先頭: lit.slice(0,3).map(p=>p.name+':'+T[p.costKey])};
+  const lit = PERKS.filter(p => !perkDone(p) && S.pres >= perkCost(p));
+  return {pres: S.pres, 光る数: lit.length, 先頭: lit.slice(0,3).map(p=>p.name+':'+Math.ceil(perkCost(p)))};
 });
 add(2, '初回の転生で光るパークの数', `通貨${first.pres} → ${first.光る数}個（${first.先頭.join('／')}）`, first.光る数 > 0);
 
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
 const order = await pg.evaluate(() => {
   const ord = PERKS.slice().sort((a,b)=>{
-    const oa=has(a.id)?1:0, ob=has(b.id)?1:0;
-    if (oa!==ob) return oa-ob; return T[a.costKey]-T[b.costKey];
+    const oa=perkDone(a)?1:0, ob=perkDone(b)?1:0;
+    if (oa!==ob) return oa-ob; return perkCost(a)-perkCost(b);
   });
   const listH = cv.height-(TOPH+132)-30, rowH = 34;
   const perPage = Math.floor((listH-6)/rowH)*2;

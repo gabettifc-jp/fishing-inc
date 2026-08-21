@@ -22,36 +22,74 @@ const WRITE = process.argv.includes('--write');
 const ROUNDS = 6;
 const MARGIN = parseFloat((process.argv.find(a=>a.startsWith('--margin=')) || '--margin=0.8').split('=')[1]);
 
-/* どの周でどのパークを取るか（10章11の節目に合わせる）。
-   周1・4・7・10・13・16・19 は移動手段の周なので、パークは置かない */
-const PLAN_PERKS = {
-  2:  ['pkBait1'],
-  3:  ['opn1'],                       // 節目1 自動の竿が解放される
-  4:  ['opn7'],                       // 図鑑が解放される（10章11）
-  5:  ['pkReel1'],
-  6:  ['pkCool1', 'car1'],
-  8:  ['opn4'],                       // 節目2 売るのが自動になる
-  9:  ['pkRod1', 'pkLine1'],
-  11: ['opn5'],                       // 節目3 道具を自動で買う
-  12: ['pkBait2', 'pkReel2'],
-  13: ['opn2'],                       // 節目4 自動の竿の精度（1段目）
-  14: ['pkCool2', 'car2'],
-  15: ['pkLine2', 'pkRod2'],
-  17: ['opn3'],                       // 節目5 自動の竿の精度（2段目）
-  18: ['opn8', 'opn9'],               // 図鑑の売値／未発見が掛かりやすい
-  20: ['opn6'],                       // 節目6 自動でも超大物を捌ける
-  21: ['pkBait3', 'pkReel3'],
-  22: ['pkCool3', 'pkLine3'],
-  23: ['pkRod3', 'opn10'],            // 主が出やすくなる
-  24: ['car3', 'car4'],
+/* どの周でどのパークを取るか。
+   **仕様書が決めているものと、こちらが置いただけのものを分ける。**
+
+   決（10章11 の表）── 節目の周と、そこで開くもの。
+     周3 開く型1／周4 図鑑／周8 開く型4／周11 開く型5／
+     **周13 竿の精度3段目／周17 竿の精度7段目**／周20 開く型6
+     （**10章11 は竿の精度を段数で書いている。**10章10 の開く型2・3
+       「自動の竿の精度（1段目）（2段目）」とは別の道具で、食い違っている）
+   決（10章10）── 停滞周は無限段を一段だけ買える値段にする。
+
+   案 ── それ以外の周に何を置くか。**仕様書に無い。**
+   周1・7・10・16・19 は移動手段の周なので、パークは置かない。 */
+const PLAN_FIXED = {                  // 仕様書が決めている
+  3:  ['opn1'],
+  4:  ['opn7'],
+  8:  ['opn4'],
+  11: ['opn5'],
+  13: ['rodAcc:3'],
+  17: ['rodAcc:7'],
+  20: ['opn6'],
 };
+const PLAN_DRAFT = {                  // **こちらの案。承認を得ていない**
+  2:  ['pkBait1'],
+  5:  ['pkReel1'],
+  6:  ['carSlot:1'],
+  9:  ['pkRod1'],
+  12: ['pkBait2', 'pkReel2'],
+  14: ['pkCool2', 'carSlot:2'],
+  15: ['pkLineAll'],
+  18: ['opn8', 'opn9'],
+  21: ['pkBait3', 'pkReel3'],
+  22: ['pkCool3', 'pkLineAuto'],
+  23: ['opn10', 'carKeep:1'],
+  24: ['carSlot:3', 'opn11'],
+};
+const PLAN_PERKS = {};
+for (const [k,v] of Object.entries(PLAN_FIXED)) PLAN_PERKS[k] = (PLAN_PERKS[k]||[]).concat(v);
+for (const [k,v] of Object.entries(PLAN_DRAFT)) PLAN_PERKS[k] = (PLAN_PERKS[k]||[]).concat(v);
 
 const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.goto(PAGE);
 
 // いまのつまみの名前を取る
-const COSTKEYS = await page.evaluate(() => Object.fromEntries(PERKS.map(p => [p.id, p.costKey])));
+const COSTKEYS = await page.evaluate(() => Object.fromEntries(
+  PERKS.filter(p => p.type === 'one').map(p => [p.id, p.costKey])));
+
+/* **黙って飛ばさない。**この道具は「一つの値段を持つパーク」しか解けない。
+   段数型（`rodAcc:3` のような書き方）は 1段目の値段と伸び率の二つを解く問題で、
+   いまの解き方（その周の経験の8割を分け合う）では出せない。
+   仕様書 10章11 が周13・17 に竿の精度3段目・7段目を置いているので、
+   **段数型を解けるようにするまで、この道具は逆算を出せない。** */
+{
+  const tiers = [], unknown = [];
+  for (const ids of Object.values(PLAN_PERKS)) for (const id of ids) {
+    if (id.includes(':')) tiers.push(id);
+    else if (!COSTKEYS[id]) unknown.push(id);
+  }
+  if (tiers.length || unknown.length) {
+    console.log('\nこの道具はまだ逆算を出せない。');
+    if (tiers.length)   console.log('  段数型（1段目の値段と伸び率の二つを解く必要がある）：', tiers.join('／'));
+    if (unknown.length) console.log('  知らないパーク：', unknown.join('／'));
+    console.log('\n**周ごとの割り当ての大半は、まだ「案」である**（PLAN_DRAFT）。');
+    console.log('承認を得てから、段数型を解けるように直すこと。');
+    await browser.close();
+    process.exit(1);
+  }
+}
 
 let costs = {};   // costKey -> 値段
 for (let round = 1; round <= ROUNDS; round++) {
