@@ -348,7 +348,7 @@ async function runOnce(page, skill, seed, sets, trace) {
             money *= perfectMult() * comboMult(); perfect++; }
           else soso++;
           money = Math.floor(money);
-          S.money += money; earn += money; byGrade[c.grade]++;
+          S.money += money; earn += money; byGrade[c.grade]++; S.rec.byGrade[c.grade]++;
           { const sl = GRADE_SLOTS[c.grade]; const k = sl[(rnd()*sl.length)|0]; S.dex[S.place][k] = true; }
           if (S.place === 7 && c.grade === 4) { cleared = true; clearRun = runNo; }
         }
@@ -364,7 +364,7 @@ async function runOnce(page, skill, seed, sets, trace) {
             autoAcc2[i] -= a.dur; casts++;
             if (a.result === 'miss') missed++;
             else { const m = Math.floor(unitPrice(S.place, a.grade) * sellMult());
-              S.money += m; earn += m; soso++; byGrade[a.grade]++;
+              S.money += m; earn += m; soso++; byGrade[a.grade]++; S.rec.byGrade[a.grade]++;
               { const sl = GRADE_SLOTS[a.grade]; const k = sl[(rnd()*sl.length)|0]; S.dex[S.place][k] = true; }
               if (S.place === 7 && a.grade === 4) { cleared = true; clearRun = runNo; } }
           }
@@ -391,6 +391,14 @@ async function runOnce(page, skill, seed, sets, trace) {
           break; }
         if (t > 7200) break;
       }
+
+      /* **本体が読む状態を、測定器の側でも積む。**
+         `lifeCatch()`／`lifeHuge()`／`lifeCombo()` は `S.rec.byGrade` と `S.history` を読む。
+         ここを触っていなかったので、**解禁条件が永久に満たされず、図鑑も主も出なかった。**
+         `check.md`「検査は『本物と同じ呼ばれ方』で呼ぶ」── 引数の形だけの話ではない。
+         **本体が読む状態を持っていなければ、同じ呼ばれ方にならない。** */
+      S.rec.bestCombo = bestComboRun;
+      S.history.push({ byGrade: S.rec.byGrade.slice(), bestCombo: bestComboRun });
 
       const presGot = presGain(earn);
       runs.push({ no: runNo, sec: t, casts, myCasts, earn, presGot, byGrade: byGrade.slice(),
