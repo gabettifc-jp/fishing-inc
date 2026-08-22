@@ -136,6 +136,41 @@ add('保', '古い保存で、12章だけ捨てて他は残るか',
     `他の章 ${sv.他の章は残るか?'残った':'消えた'}／12章 ${sv['12章は捨てるか']?'捨てた':'残った'}`,
     sv.他の章は残るか && sv['12章は捨てるか']);
 
+/* 自動の竿が、プレイヤーの竿の演出を横取りしていないか（9章の決）。
+   > 超大物が上がった｜プレイヤー **演出5**（1.0秒・手を止める）｜自動 **出さない**
+   > 音｜高い音｜**無し**
+   **終盤の一周で自動は約150匹の超大物を上げる。**1.0秒の演出は入らない。
+   実装は `!r.auto` を見ておらず、**カットインも音も全画面の返しも出していた。** */
+const autofx = await pg.evaluate(() => {
+  let beeps = 0; const real = window.beep; window.beep = () => { beeps++; };
+  S = newState(); syncRods();
+  const rod = rods[0];
+  const run = (auto, grade, isNew) => {
+    fx.length = 0; beeps = 0;
+    rod.auto = auto; rod.grade = grade; rod.t = 0;
+    S.dex[S.place] = isNew ? [] : [1,1,1,1,1,1,1,1,1];
+    applyResult(rod, 'soso', false);
+    return { fx: fx.map(f => f.kind), beeps };
+  };
+  const 手動 = run(false, 4, false);
+  const 自動既知 = run(true, 4, false);
+  const 自動新種 = run(true, 4, true);
+  const 自動雑魚 = run(true, 0, false);
+  window.beep = real;
+  return {
+    手動にカットイン: 手動.fx.includes('huge'),
+    自動既知にカットイン: 自動既知.fx.includes('huge'),
+    自動新種にカットイン: 自動新種.fx.includes('huge'),
+    自動の音: 自動既知.beeps + 自動雑魚.beeps,
+  };
+});
+add('演', '超大物のカットインが、自動の竿から出ていないか',
+    `手動 ${autofx.手動にカットイン?'出る':'出ない'}／自動・既知 ${autofx.自動既知にカットイン?'出る':'出ない'}`
+    + `／自動・新種 ${autofx.自動新種にカットイン?'出る':'出ない'}`,
+    autofx.手動にカットイン && !autofx.自動既知にカットイン && autofx.自動新種にカットイン);
+add('演', '自動の竿が音を鳴らしていないか（9章「自動の音は無し」）',
+    `自動が鳴らした回数 ${autofx.自動の音}`, autofx.自動の音 === 0);
+
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
 /* 並びが「値段の安い順」から「湧いている順」に変わったので、見るものも変える。
    **湧いているものが一ページに収まるか。**収まらないと、
