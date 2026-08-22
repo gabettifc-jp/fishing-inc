@@ -348,6 +348,7 @@ const TUNE_DEF = [
   ['uiGlowA',     '12. 画面', '他の画面の光・濃さ',                      0.16, 'n'],
   ['uiBarW',      '12. 画面', '札の左の色帯・太さ',                      3,    'n'],
   ['dexPx',       '12. 画面', '図鑑の魚の大きさ',                        44,   'n'],
+  ['resetArmSec', '12. 画面', '「最初から」の確認が出ている長さ（秒）',  4,    'n'],
   /* 釣り場ごとの描き込み（11章・第36版）。**濃さはここで一括して動かす。**
      どの描き込みを出すかは釣り場の表（`feat`）が決める */
   ['featA',       '12. 画面', '描き込みの濃さ（全釣り場に効く）',        1.0,  'n'],
@@ -2027,6 +2028,26 @@ function load(obj){
     syncRods(); return true;
   }catch(e){ return false; }
 }
+/* 最初から（10.5章・第37版）。**保存も、つまみも、全部戻す。**
+   横のパネルの「最初から」しか無く、**スマホでは画面の下まで送らないと届かなかった。**
+   しかも確認が無く、一度触れば消えた。**二段にして、画面の中からも触れるようにする。** */
+function resetAll(){
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  for (const [id,,,v] of TUNE_DEF) T[id] = v;      // つまみも既定へ
+  S = newState(); scr='C'; overlay=null; combo=0; bestComboRun=0;
+  creel=0; rods.length=0; fx.length=0; dexSel=null;
+  syncRods(); fitCanvas();
+  if (typeof syncTunerInputs==='function') syncTunerInputs();
+  note('最初から');
+}
+/* 二段の確認。**押した直後だけ「消す」が出る。**放っておくと戻る */
+let resetArm = 0;
+/* **0 は「押していない」。**0 のまま引き算すると、読み込み直後の数秒が
+   ずっと「確認が出ている」状態になり、**開いた瞬間に「消す」が押せた** */
+function resetArmed(){
+  return resetArm > 0 && performance.now()/1000 - resetArm < T.resetArmSec;
+}
+
 function exportStr(){ return btoa(unescape(encodeURIComponent(JSON.stringify(snapshot())))); }
 function importStr(s){
   try{ return load(JSON.parse(decodeURIComponent(escape(atob(s.trim()))))); }
@@ -3155,6 +3176,24 @@ function drawRecOverlay(){
       txt(r[1], x+92, y, 11, '#c9d6dc');
     });
   }
+  /* 最初から。**画面の中から触れるところに置く**（横のパネルはスマホで届かない）。
+     **二段にする** ── 一段だと、触っただけで消える */
+  {
+    const by = Y+BH-26;
+    if (!resetArmed()){
+      box(X+12, by, 78, 18, '#141d23', '#33262a');
+      txt('最初から', X+18, by+3, 10, '#8a6f6c');
+      hs(X+12, by, 78, 18, ()=>{ resetArm = performance.now()/1000; });
+    } else {
+      txt('所持金・図鑑・転生・つまみを全部消します', X+12, by+4, 10, '#e0736b');
+      box(X+BW-150, by, 66, 18, '#2a1c1c', '#7a3a34');
+      txt('消す', X+BW-134, by+3, 10, '#e0736b');
+      hs(X+BW-150, by, 66, 18, ()=>resetAll());
+      box(X+BW-78, by, 66, 18, '#16262e', '#2f4a56');
+      txt('やめる', X+BW-66, by+3, 10, '#9fb6c4');
+      hs(X+BW-78, by, 66, 18, ()=>{ resetArm = 0; });
+    }
+  }
   const cw2=46; box(X+BW-cw2-8,Y+6,cw2,17,'#16262e','#2f4a56');
   txt('閉じる',X+BW-cw2-3,Y+9,10,'#9fb6c4');
   hs(X+BW-cw2-8,Y+6,cw2,17,()=>overlay=null);
@@ -3237,11 +3276,19 @@ function buildTuner(){
     if (importStr(document.getElementById('svBox').value)){ syncTunerInputs(); fitCanvas(); note('読み込んだ'); }
     else note('読み込めなかった');
   };
-  document.getElementById('svReset').onclick=()=>{
-    try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
-    S=newState(); scr='C'; combo=0; bestComboRun=0;
-    creel=0; rods.length=0; syncRods(); note('最初から');
-  };
+  /* 横のパネルのほうも二段にする。**一段だと、触っただけで消えていた** */
+  {
+    const b = document.getElementById('svReset');
+    b.onclick = () => {
+      if (!resetArmed()){
+        resetArm = performance.now()/1000;
+        b.textContent = '本当に消す？';
+        setTimeout(()=>{ if(!resetArmed()) b.textContent='最初から'; }, T.resetArmSec*1000+50);
+      } else {
+        resetArm = 0; b.textContent = '最初から'; resetAll();
+      }
+    };
+  }
   document.getElementById('rcTsv').onclick =()=>{ recPre.textContent = recTsv(); };
   document.getElementById('rcJson').onclick=()=>{ recPre.textContent = JSON.stringify(recAll(),null,1); };
   document.getElementById('rcCopy').onclick=()=>{ recPre.textContent = recTsv(); recPre.focus(); };

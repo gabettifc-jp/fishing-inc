@@ -177,6 +177,43 @@ add('演', '自動の竿が音を鳴らしていないか（9章「自動の音�
 add('演', '新種の超大物は、自動でも音が鳴るか',
     `鳴った回数 ${autofx.自動新種の音}`, autofx.自動新種の音 > 0);
 
+/* 「最初から」が二段になっているか（10.5章・第37版）。
+   横のパネルにしか無く、**スマホでは画面の下まで送らないと届かなかった。**
+   しかも一段で、**触っただけで消えた。**
+   さらに、armed の初期値を 0 にしたせいで
+   **読み込み直後の数秒がずっと「確認が出ている」状態**になっていた（開いた瞬間に消せた）。 */
+const rst = await pg.evaluate(() => {
+  const out = {};
+  const at = (x,y) => { for (let i=hotspots.length-1;i>=0;i--){ const h=hotspots[i];
+    if (x>=h.x&&x<=h.x+h.w&&y>=h.y&&y<=h.y+h.h) return h; } return null; };
+  S = newState(); syncRods(); scr='A'; overlay='rec'; draw();
+  out.開いた直後に確認が出ていないか = !resetArmed();
+
+  S.money = 999999; S.run = 9; T.glowFloat = 999; save(); draw();
+  const H=cv.height, BH=248, Y=Math.floor((H-BH)/2), X=16, BW=cv.width-32, by=Y+BH-26;
+  at(X+40, by+9).fn(); draw();                      // 一段目
+  out.一段目で消えないか = !!localStorage.getItem(SAVE_KEY);
+  out.確認が出たか = resetArmed();
+  at(X+BW-45, by+9).fn(); draw();                   // やめる
+  out.やめたら戻るか = !resetArmed();
+
+  at(X+40, by+9).fn(); draw();
+  at(X+BW-117, by+9).fn();                          // 消す
+  out.二段目で消えたか = !localStorage.getItem(SAVE_KEY);
+  out.状態が戻ったか = S.money===0 && S.run===1;
+  out.つまみも戻ったか = T.glowFloat === TUNE_DEF.find(r=>r[0]==='glowFloat')[3];
+  return out;
+});
+add('初', '「最初から」が二段か（一段目では消えない）',
+    `一段目 ${rst.一段目で消えないか?'消えない':'消えた'}／確認 ${rst.確認が出たか?'出た':'出ない'}`
+    + `／やめる ${rst.やめたら戻るか?'戻る':'戻らない'}／二段目 ${rst.二段目で消えたか?'消えた':'消えない'}`,
+    rst.一段目で消えないか && rst.確認が出たか && rst.やめたら戻るか && rst.二段目で消えたか);
+add('初', '開いた直後に、確認が出たままになっていないか',
+    rst.開いた直後に確認が出ていないか?'出ていない':'出ている', rst.開いた直後に確認が出ていないか);
+add('初', '「最初から」で、保存もつまみも状態も戻るか',
+    `状態 ${rst.状態が戻ったか?'戻った':'戻らない'}／つまみ ${rst.つまみも戻ったか?'戻った':'戻らない'}`,
+    rst.状態が戻ったか && rst.つまみも戻ったか);
+
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
 /* 並びが「値段の安い順」から「湧いている順」に変わったので、見るものも変える。
    **湧いているものが一ページに収まるか。**収まらないと、
