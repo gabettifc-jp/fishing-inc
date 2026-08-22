@@ -233,6 +233,50 @@ add('周', '周の回数で開くパークが無いか',
                    : Object.entries(axis.by).map(([k,v])=>k+' '+v).join('／'),
     axis.周.length === 0);
 
+/* 連打しても、押していない符号が判定されないか（3章）。
+   **`r.aim` を投げ直しでも押し外しでも消していなかった。**
+   前の投で掴んだ番号が残るので、次の投のカウントイン中に連打すると、
+   **押してもいない符号がその番号で外しになった**（しかも extra にも数えて二重に減点）。 */
+const aim = await pg.evaluate(() => {
+  const out = {};
+  /* **前の検査が残したものを切る。**
+     前の検査が超大物の演出を出していると `blockUntil` が立っていて、入力が全部落ちる。
+     **つまみは触らない** ── 全部既定に戻すと、後ろの検査が見ている設定まで消える */
+  fx.length = 0; overlay = null; combo = 0; blockUntil = 0;
+  const T0 = {waitLo:T.waitLo, waitHi:T.waitHi};
+  S = newState(); scr='A'; T.waitLo=0.05; T.waitHi=0.06; syncRods();
+  const r = rods[0];
+  const hook = () => { castRod(r); r.t = r.wait+0.001; update(0.016); return r.phase==='play'; };
+
+  out.掛かったか = hook();
+  const k = Math.min(2, r.tl.syms.length-1);
+  r.t = r.tl.syms[k].start; press(true);
+  out.一投目のaim = r.aim;                                   // 掴めているか
+  press(false);
+  r.t = r.tl.total+1; update(0.016);
+
+  out.二投目も掛かったか = hook();
+  out.二投目のaim = r.aim;                                   // 消えているか
+  r.t = 0.2; press(true); press(false);                      // カウントイン中に連打
+  out.連打で判定された数 = r.res.filter(Boolean).length;
+
+  out.三投目も掛かったか = hook();
+  r.t = r.tl.syms[0].start + 0.001; press(true);
+  out.順番 = (r.aim === 0);
+  out.三投目のaim = r.aim;
+  press(false);
+  Object.assign(T, T0);                                      // 借りたものは返す
+  return out;
+});
+add('打', '投げ直したら、前の狙いが消えているか',
+    `一投目 ${aim.一投目のaim} → 二投目 ${aim.二投目のaim}`,
+    aim.一投目のaim >= 0 && aim.二投目のaim < 0);
+add('打', '連打しても、押していない符号が判定されないか',
+    `カウントイン中の連打で判定された符号 ${aim.連打で判定された数}個`, aim.連打で判定された数 === 0);
+add('打', '窓に入っている符号のうち、いちばん早いものを掴むか',
+    aim.順番 ? '掴む' : ('掴んだ番号 '+aim.三投目のaim+'（掛かった '+aim.三投目も掛かったか+'）'),
+    aim.順番);
+
 /* 3. 取るべきパークが一覧の何番目か（9章 画面B） */
 /* 並びが「値段の安い順」から「湧いている順」に変わったので、見るものも変える。
    **湧いているものが一ページに収まるか。**収まらないと、

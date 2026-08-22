@@ -440,7 +440,9 @@ async function runOnce(page, skill, seed, sets, trace) {
       trace: trace ? runs0trace : undefined,
       perRun: runs.map(r=>({no:r.no, sec:+r.sec.toFixed(1), casts:r.myCasts, all:r.casts, earn:r.earn,
         pres:r.presGot, p:r.perfect, s:r.soso, m:r.missed, cb:r.bestCombo,
-        place:r.place+1, places:r.places, perks:r.perks, tools:r.tools})),
+        place:r.place+1, places:r.places, perks:r.perks, tools:r.tools,
+        // 格ごとの内訳。**超大物の数を、しきい値を決めるのに使う**（第38版）
+        g:r.byGrade, huge:(r.byGrade&&r.byGrade[4])||0})),
     };
   }, { skill, seed, sets, trace, plan: PLAN });
 }
